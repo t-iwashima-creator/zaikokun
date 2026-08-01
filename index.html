@@ -21,15 +21,77 @@
     align-items: center;
   }
   header h1 { font-size: 18px; margin: 0; }
-  #logoutBtn {
+  #headerActions { display: flex; gap: 10px; }
+  #csvBtn, #logoutBtn {
     background: transparent;
     border: 1px solid #cbd2d9;
     color: #fff;
     padding: 6px 14px;
     border-radius: 6px;
     cursor: pointer;
+    font-size: 13px;
   }
+  #csvBtn { background: #2f7dd9; border-color: #2f7dd9; }
+  #csvBtn:hover { background: #2568b8; }
   #logoutBtn:hover { background: #323f4b; }
+
+  /* CSV import modal */
+  #csvModalOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+  }
+  #csvModal {
+    background: #fff;
+    border-radius: 10px;
+    width: 900px;
+    max-width: 94vw;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #csvModalHeader {
+    padding: 16px 20px;
+    border-bottom: 1px solid #eef1f4;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  #csvModalHeader h2 { margin: 0; font-size: 16px; }
+  #csvModalClose { background: none; border: none; font-size: 18px; cursor: pointer; color: #616e7c; }
+  #csvModalBody { padding: 16px 20px; overflow-y: auto; }
+  #csvModalFooter {
+    padding: 14px 20px;
+    border-top: 1px solid #eef1f4;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .csvHint { font-size: 12px; color: #616e7c; line-height: 1.7; background: #f5f6f8; border-radius: 6px; padding: 10px 12px; margin-bottom: 14px; }
+  .csvHint code { background: #e8eaed; padding: 1px 5px; border-radius: 4px; }
+  #csvFileInput { margin-bottom: 12px; }
+  #csvPreviewTable { width: 100%; border-collapse: collapse; font-size: 12px; }
+  #csvPreviewTable th { text-align: left; background: #eef1f4; padding: 6px 8px; position: sticky; top: 0; }
+  #csvPreviewTable td { padding: 6px 8px; border-top: 1px solid #eef1f4; white-space: nowrap; }
+  #csvPreviewTable tr.rowError td { color: #cc3344; background: #fff5f5; }
+  #csvSummary { font-size: 13px; color: #33415c; }
+  #csvApplyBtn {
+    background: #1f6feb;
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  #csvApplyBtn:hover { background: #1a5fc7; }
+  #csvApplyBtn:disabled { background: #9aa5b1; cursor: not-allowed; }
+  #csvProgress { font-size: 12px; color: #616e7c; margin-top: 8px; white-space: pre-line; }
 
   /* login screen */
   #loginScreen {
@@ -232,7 +294,10 @@
 <div id="appScreen" class="hidden">
   <header>
     <h1>在庫君 - 在庫照会</h1>
-    <button id="logoutBtn">ログアウト</button>
+    <div id="headerActions">
+      <button id="csvBtn">CSV一括反映</button>
+      <button id="logoutBtn">ログアウト</button>
+    </div>
   </header>
   <main>
     <div id="controls">
@@ -320,6 +385,43 @@
       </div>
     </div>
   </main>
+</div>
+
+<div id="csvModalOverlay" class="hidden">
+  <div id="csvModal">
+    <div id="csvModalHeader">
+      <h2>CSVで在庫をまとめて反映</h2>
+      <button id="csvModalClose">✕</button>
+    </div>
+    <div id="csvModalBody">
+      <div class="csvHint">
+        スプレッドシートで以下の列を用意し、「ファイル」→「ダウンロード」→「カンマ区切り値(.csv)」で書き出したファイルをアップロードしてください。<br>
+        列（1行目はヘッダー）：<code>SKU,本店,オクテット,三好,理由</code><br>
+        本店・オクテット・三好の列には、増減させたい数（例: -1, +2）を入れてください。変更しない拠点は空欄でOKです。津島列がある場合は無視されます。
+      </div>
+      <input type="file" id="csvFileInput" accept=".csv" />
+      <div id="csvSummary"></div>
+      <div style="max-height: 40vh; overflow-y: auto; margin-top: 10px;">
+        <table id="csvPreviewTable" class="hidden">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>拠点</th>
+              <th>増減数</th>
+              <th>理由</th>
+              <th>現在の在庫</th>
+              <th>状態</th>
+            </tr>
+          </thead>
+          <tbody id="csvPreviewBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div id="csvModalFooter">
+      <div id="csvProgress"></div>
+      <button id="csvApplyBtn" disabled>この内容を反映</button>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -605,6 +707,173 @@
     transMsg.className = "panelMsg ok";
     transAmount.value = "";
     transReason.value = "";
+  });
+
+  // ===== CSV一括反映 =====
+  const csvBtn = document.getElementById("csvBtn");
+  const csvModalOverlay = document.getElementById("csvModalOverlay");
+  const csvModalClose = document.getElementById("csvModalClose");
+  const csvFileInput = document.getElementById("csvFileInput");
+  const csvSummary = document.getElementById("csvSummary");
+  const csvPreviewTable = document.getElementById("csvPreviewTable");
+  const csvPreviewBody = document.getElementById("csvPreviewBody");
+  const csvApplyBtn = document.getElementById("csvApplyBtn");
+  const csvProgress = document.getElementById("csvProgress");
+
+  const LOCATION_HEADER_MAP = {
+    "本店": "net", "ネット": "net",
+    "オクテット": "octet",
+    "三好": "miyoshi"
+  };
+
+  let csvPlan = []; // [{sku, location, amount, reason, currentStock, valid, error}]
+
+  csvBtn.addEventListener("click", () => {
+    csvModalOverlay.classList.remove("hidden");
+    resetCsvModal();
+  });
+  csvModalClose.addEventListener("click", () => {
+    csvModalOverlay.classList.add("hidden");
+  });
+
+  function resetCsvModal() {
+    csvFileInput.value = "";
+    csvSummary.textContent = "";
+    csvPreviewTable.classList.add("hidden");
+    csvPreviewBody.innerHTML = "";
+    csvApplyBtn.disabled = true;
+    csvProgress.textContent = "";
+    csvPlan = [];
+  }
+
+  function parseCsvText(text) {
+    const rows = [];
+    let row = [], field = "", inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { field += '"'; i++; }
+          else inQuotes = false;
+        } else field += c;
+      } else {
+        if (c === '"') inQuotes = true;
+        else if (c === ",") { row.push(field); field = ""; }
+        else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+        else if (c === "\r") { /* skip */ }
+        else field += c;
+      }
+    }
+    if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+    return rows.filter(r => !(r.length === 1 && r[0].trim() === ""));
+  }
+
+  function cleanText(s) {
+    return (s || "").replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, "").trim();
+  }
+
+  csvFileInput.addEventListener("change", async () => {
+    const file = csvFileInput.files[0];
+    if (!file) return;
+    const text = await file.text();
+    const rows = parseCsvText(text);
+    if (rows.length < 2) {
+      csvSummary.textContent = "データ行が見つかりませんでした。";
+      return;
+    }
+    const header = rows[0].map(cleanText);
+    const skuIdx = header.findIndex(h => h === "SKU");
+    const reasonIdx = header.findIndex(h => h === "理由");
+    const locationIdx = {};
+    header.forEach((h, i) => {
+      if (LOCATION_HEADER_MAP[h]) locationIdx[LOCATION_HEADER_MAP[h]] = i;
+    });
+
+    if (skuIdx === -1 || Object.keys(locationIdx).length === 0) {
+      csvSummary.textContent = "ヘッダー行に「SKU」や拠点名の列(本店/ネット・オクテット・三好)が見つかりません。ファイル形式を確認してください。";
+      return;
+    }
+
+    const productMap = new Map(allProducts.map(p => [p.sku, p]));
+    const plan = [];
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      const sku = cleanText(r[skuIdx]);
+      if (!sku) continue;
+      const reason = reasonIdx !== -1 ? cleanText(r[reasonIdx]) : "";
+      for (const [locKey, colIdx] of Object.entries(locationIdx)) {
+        const raw = cleanText(r[colIdx]);
+        if (raw === "") continue;
+        const amount = parseInt(raw, 10);
+        if (!amount || isNaN(amount)) continue;
+        const product = productMap.get(sku);
+        plan.push({
+          sku,
+          location: locKey,
+          amount,
+          reason,
+          currentStock: product ? product["stock_" + locKey] : null,
+          valid: !!product,
+          error: product ? "" : "SKUが見つかりません"
+        });
+      }
+    }
+
+    csvPlan = plan;
+    renderCsvPreview();
+  });
+
+  function renderCsvPreview() {
+    const validCount = csvPlan.filter(p => p.valid).length;
+    const errorCount = csvPlan.length - validCount;
+    csvSummary.textContent = `${csvPlan.length}件の変更を検出（うち反映可能: ${validCount}件、エラー: ${errorCount}件）`;
+    csvPreviewTable.classList.remove("hidden");
+    csvPreviewBody.innerHTML = csvPlan.map(p => `
+      <tr class="${p.valid ? "" : "rowError"}">
+        <td>${escapeHtml(p.sku)}</td>
+        <td>${LOCATION_LABEL[p.location]}</td>
+        <td>${p.amount > 0 ? "+" + p.amount : p.amount}</td>
+        <td>${escapeHtml(p.reason)}</td>
+        <td>${p.currentStock === null ? "-" : p.currentStock}</td>
+        <td>${p.valid ? "OK" : escapeHtml(p.error)}</td>
+      </tr>
+    `).join("");
+    csvApplyBtn.disabled = validCount === 0;
+  }
+
+  csvApplyBtn.addEventListener("click", async () => {
+    const targets = csvPlan.filter(p => p.valid);
+    if (targets.length === 0) return;
+    csvApplyBtn.disabled = true;
+    csvFileInput.disabled = true;
+    let done = 0, failed = 0;
+    for (const p of targets) {
+      csvProgress.textContent = `反映中... ${done + failed + 1} / ${targets.length}`;
+      const { data, error } = await client.rpc("apply_stock_change", {
+        p_sku: p.sku,
+        p_location: p.location,
+        p_change_amount: p.amount,
+        p_reason: p.reason || null,
+        p_source_file: "csv_bulk"
+      });
+      if (error) {
+        failed++;
+        p.valid = false;
+        p.error = error.message;
+      } else {
+        done++;
+        const local = allProducts.find(r => r.sku === p.sku);
+        if (local) {
+          local.stock_net = data.stock_net;
+          local.stock_octet = data.stock_octet;
+          local.stock_miyoshi = data.stock_miyoshi;
+        }
+      }
+    }
+    csvFileInput.disabled = false;
+    csvProgress.textContent = `完了: 成功 ${done}件 / 失敗 ${failed}件`;
+    renderCsvPreview();
+    renderTable(currentFilteredRows());
   });
 
   checkSession();
