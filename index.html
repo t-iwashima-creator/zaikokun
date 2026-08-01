@@ -44,6 +44,28 @@
   #newProductBtn { background: #d9822f; border-color: #d9822f; }
   #newProductBtn:hover { background: #b8691f; }
   #logoutBtn:hover { background: #323f4b; }
+  .historyFilterRow { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
+  .historyFilterRow .field { display: flex; flex-direction: column; gap: 3px; }
+  .historyFilterRow label { font-size: 11px; color: #616e7c; }
+  .historyFilterRow input, .historyFilterRow select {
+    padding: 7px 8px;
+    border: 1px solid #cbd2d9;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  #historyLoadMoreBtn {
+    display: block;
+    margin: 10px auto 0;
+    background: #fff;
+    color: #1f6feb;
+    border: 1px solid #1f6feb;
+    padding: 8px 20px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  #historyLoadMoreBtn:hover:not(:disabled) { background: #f5f8ff; }
+  #historyLoadMoreBtn:disabled { color: #9aa5b1; border-color: #cbd2d9; cursor: not-allowed; }
 
   /* その他メニュー（使用頻度の低い機能をまとめる） */
   #moreMenuWrap { position: relative; }
@@ -457,6 +479,7 @@
       <div id="moreMenuWrap">
         <button id="moreMenuBtn" title="その他">⋯</button>
         <div id="moreMenuPanel" class="hidden">
+          <button id="historyBtn">変動履歴を見る</button>
           <button id="downloadCsvBtn">在庫CSVをダウンロード</button>
           <button id="bulkDeleteBtn">在庫が一点もない品番を削除</button>
         </div>
@@ -686,6 +709,60 @@
   </div>
 </div>
 
+<div id="historyModalOverlay" class="modalOverlay hidden">
+  <div class="modalBox modalBoxWide">
+    <div class="modalHeader">
+      <h2>在庫変動履歴</h2>
+      <button id="historyModalClose" class="modalClose">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="historyFilterRow">
+        <div class="field">
+          <label>SKU（部分一致）</label>
+          <input type="text" id="historySkuInput" placeholder="例: 00530-s-111" style="width:180px;" />
+        </div>
+        <div class="field">
+          <label>拠点</label>
+          <select id="historyLocationSelect">
+            <option value="">全拠点</option>
+            <option value="net">ネット</option>
+            <option value="octet">オクテット</option>
+            <option value="miyoshi">三好</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>期間（から）</label>
+          <input type="date" id="historyFromDate" />
+        </div>
+        <div class="field">
+          <label>期間（まで）</label>
+          <input type="date" id="historyToDate" />
+        </div>
+        <button id="historySearchBtn" class="modalPrimaryBtn" style="width:auto;">検索</button>
+      </div>
+      <div id="historySummary" style="font-size:13px; color:#33415c; margin-top:10px;"></div>
+      <div style="max-height: 50vh; overflow-y: auto; margin-top: 10px;">
+        <table id="historyPreviewTable" class="previewTable hidden">
+          <thead>
+            <tr>
+              <th>日時</th>
+              <th>SKU</th>
+              <th>商品名</th>
+              <th>拠点</th>
+              <th>増減数</th>
+              <th>理由</th>
+              <th>変更元</th>
+              <th>変更者</th>
+            </tr>
+          </thead>
+          <tbody id="historyPreviewBody"></tbody>
+        </table>
+        <button id="historyLoadMoreBtn" class="hidden">もっと読み込む</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="newProductModalOverlay" class="modalOverlay hidden">
   <div class="modalBox modalBoxWide">
     <div class="modalHeader">
@@ -843,6 +920,18 @@
   const newProductPreviewBody = document.getElementById("newProductPreviewBody");
   const newProductApplyBtn = document.getElementById("newProductApplyBtn");
   const newProductProgress = document.getElementById("newProductProgress");
+
+  const historyModalOverlay = document.getElementById("historyModalOverlay");
+  const historyModalClose = document.getElementById("historyModalClose");
+  const historySkuInput = document.getElementById("historySkuInput");
+  const historyLocationSelect = document.getElementById("historyLocationSelect");
+  const historyFromDate = document.getElementById("historyFromDate");
+  const historyToDate = document.getElementById("historyToDate");
+  const historySearchBtn = document.getElementById("historySearchBtn");
+  const historySummary = document.getElementById("historySummary");
+  const historyPreviewTable = document.getElementById("historyPreviewTable");
+  const historyPreviewBody = document.getElementById("historyPreviewBody");
+  const historyLoadMoreBtn = document.getElementById("historyLoadMoreBtn");
 
   let allProducts = [];
   let selectedSku = null;
@@ -1726,6 +1815,7 @@
   // ===== その他メニュー =====
   const moreMenuBtn = document.getElementById("moreMenuBtn");
   const moreMenuPanel = document.getElementById("moreMenuPanel");
+  const historyBtn = document.getElementById("historyBtn");
   const downloadCsvBtn = document.getElementById("downloadCsvBtn");
   const bulkDeleteBtn = document.getElementById("bulkDeleteBtn");
 
@@ -1738,6 +1828,109 @@
       moreMenuPanel.classList.add("hidden");
     }
   });
+
+  // ===== 在庫変動履歴 =====
+  const HISTORY_PAGE_SIZE = 100;
+  const SOURCE_FILE_LABEL = {
+    manual_ui: "手動（在庫増減）",
+    manual_transfer: "店舗間移動",
+    csv_bulk: "CSV一括反映",
+    manual_add: "SKU新規登録（初期在庫）"
+  };
+  let historyRows = [];
+  let historyOffset = 0;
+  let historyHasMore = true;
+  let historyLoading = false;
+
+  historyBtn.addEventListener("click", () => {
+    moreMenuPanel.classList.add("hidden");
+    historyModalOverlay.classList.remove("hidden");
+    historySkuInput.value = "";
+    historyLocationSelect.value = "";
+    historyFromDate.value = "";
+    historyToDate.value = "";
+    loadHistoryPage(true);
+  });
+  historyModalClose.addEventListener("click", () => {
+    historyModalOverlay.classList.add("hidden");
+  });
+  historySearchBtn.addEventListener("click", () => loadHistoryPage(true));
+  historyLoadMoreBtn.addEventListener("click", () => loadHistoryPage(false));
+
+  function formatDateTime(iso) {
+    const d = new Date(iso);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function buildHistoryQuery() {
+    let q = client.from("stock_history").select("*").order("created_at", { ascending: false });
+    const sku = historySkuInput.value.trim();
+    if (sku) q = q.ilike("sku", `%${sku}%`);
+    const loc = historyLocationSelect.value;
+    if (loc) q = q.eq("location", loc);
+    const from = historyFromDate.value;
+    if (from) q = q.gte("created_at", from + "T00:00:00");
+    const to = historyToDate.value;
+    if (to) q = q.lte("created_at", to + "T23:59:59");
+    return q;
+  }
+
+  async function loadHistoryPage(reset) {
+    if (historyLoading) return;
+    if (reset) {
+      historyOffset = 0;
+      historyRows = [];
+      historyHasMore = true;
+    }
+    if (!historyHasMore) return;
+
+    historyLoading = true;
+    historySearchBtn.disabled = true;
+    historyLoadMoreBtn.disabled = true;
+    historyLoadMoreBtn.textContent = "読み込み中...";
+    if (reset) historySummary.textContent = "読み込み中...";
+
+    const { data, error } = await buildHistoryQuery().range(historyOffset, historyOffset + HISTORY_PAGE_SIZE - 1);
+
+    historyLoading = false;
+    historySearchBtn.disabled = false;
+
+    if (error) {
+      historySummary.textContent = "エラー: " + error.message;
+      historyLoadMoreBtn.classList.add("hidden");
+      return;
+    }
+
+    historyRows = historyRows.concat(data);
+    historyOffset += data.length;
+    historyHasMore = data.length === HISTORY_PAGE_SIZE;
+
+    renderHistoryTable();
+    historyLoadMoreBtn.classList.toggle("hidden", !historyHasMore);
+    historyLoadMoreBtn.disabled = false;
+    historyLoadMoreBtn.textContent = "もっと読み込む";
+  }
+
+  function renderHistoryTable() {
+    historySummary.textContent = `${historyRows.length}件を表示中${historyHasMore ? "（さらにあります。下の「もっと読み込む」で追加表示）" : ""}`;
+    historyPreviewTable.classList.remove("hidden");
+    historyPreviewBody.innerHTML = historyRows.map(r => {
+      const p = allProducts.find(x => x.sku === r.sku);
+      return `
+        <tr>
+          <td>${escapeHtml(formatDateTime(r.created_at))}</td>
+          <td>${escapeHtml(r.sku)}</td>
+          <td>${escapeHtml((p && p.product_name) || "")}</td>
+          <td>${LOCATION_LABEL[r.location] || escapeHtml(r.location)}</td>
+          <td>${r.change_amount > 0 ? "+" + r.change_amount : r.change_amount}</td>
+          <td>${escapeHtml(r.reason || "")}</td>
+          <td>${escapeHtml(SOURCE_FILE_LABEL[r.source_file] || r.source_file || "")}</td>
+          <td>${escapeHtml(r.changed_by || "(不明)")}</td>
+        </tr>
+      `;
+    }).join("");
+  }
 
   // ===== 在庫CSVダウンロード =====
   function csvEscape(v) {
