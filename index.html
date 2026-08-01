@@ -26,7 +26,7 @@
   }
   header h1 { font-size: 18px; margin: 0; }
   #headerActions { display: flex; gap: 10px; }
-  #csvBtn, #addSkuBtn, #logoutBtn {
+  #csvBtn, #addSkuBtn, #matchBtn, #logoutBtn {
     background: transparent;
     border: 1px solid #cbd2d9;
     color: #fff;
@@ -39,6 +39,8 @@
   #csvBtn:hover { background: #2568b8; }
   #addSkuBtn { background: #2f9e58; border-color: #2f9e58; }
   #addSkuBtn:hover { background: #278049; }
+  #matchBtn { background: #8657d1; border-color: #8657d1; }
+  #matchBtn:hover { background: #7143b8; }
   #logoutBtn:hover { background: #323f4b; }
 
   /* CSV import modal */
@@ -171,6 +173,21 @@
   }
   .modalPrimaryBtn:hover { background: #1a5fc7; }
   .modalPrimaryBtn:disabled { background: #9aa5b1; cursor: not-allowed; }
+  .modalBoxWide { width: 900px; }
+  .modalBody .hint {
+    font-size: 12px;
+    color: #616e7c;
+    line-height: 1.7;
+    background: #f5f6f8;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 14px;
+  }
+  .previewTable { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .previewTable th { text-align: left; background: #eef1f4; padding: 6px 8px; position: sticky; top: 0; }
+  .previewTable td { padding: 6px 8px; border-top: 1px solid #eef1f4; white-space: nowrap; }
+  .previewTable tr.rowError td { color: #cc3344; background: #fff5f5; }
+  .previewTable tr.rowOk td { background: #f4fbf6; }
 
   /* login screen */
   #loginScreen {
@@ -394,6 +411,7 @@
     <h1>在庫君 - 在庫照会</h1>
     <div id="headerActions">
       <button id="addSkuBtn">SKU追加</button>
+      <button id="matchBtn">ccGoods突合</button>
       <button id="csvBtn">CSV一括反映</button>
       <button id="logoutBtn">ログアウト</button>
     </div>
@@ -583,6 +601,43 @@
   </div>
 </div>
 
+<div id="matchModalOverlay" class="modalOverlay hidden">
+  <div class="modalBox modalBoxWide">
+    <div class="modalHeader">
+      <h2>ccGoodsで未マッチSKUを突合</h2>
+      <button id="matchModalClose" class="modalClose">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="hint">
+        フューチャーショップの商品マスタCSV（ccGoods_*.csv、CP932、列に「商品番号」「商品名」を含むもの）をアップロードすると、
+        品番が未マッチのSKUに対して、SKUをハイフン区切りで後ろから照合し、一致する商品番号があれば品番・商品名を自動で提案します。
+        ブランドは、ブランドが未入力の行に限り、メイングループ列の「ブランド別/…」からわかる範囲で提案します（アイテムは対象外。取り込み後、必要なら「商品情報の補完」から入力してください）。
+        内容を確認してから反映するので、このアップロードだけでは何も変更されません。
+      </div>
+      <input type="file" id="matchFileInput" accept=".csv" />
+      <div id="matchSummary" style="font-size:13px; color:#33415c; margin-top:8px;"></div>
+      <div style="max-height: 45vh; overflow-y: auto; margin-top: 10px;">
+        <table id="matchPreviewTable" class="previewTable hidden">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>マッチした品番</th>
+              <th>商品名（反映後）</th>
+              <th>ブランド（反映後）</th>
+              <th>状態</th>
+            </tr>
+          </thead>
+          <tbody id="matchPreviewBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modalFooter">
+      <div id="matchProgress" style="font-size:12px; color:#616e7c; margin-right:auto; white-space:pre-line;"></div>
+      <button id="matchApplyBtn" class="modalPrimaryBtn" disabled>この内容を反映</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
   // ▼▼▼ Supabaseプロジェクトの値 ▼▼▼
@@ -647,11 +702,25 @@
   const addSkuSubmitBtn = document.getElementById("addSkuSubmitBtn");
   const addSkuMsg = document.getElementById("addSkuMsg");
 
+  const matchBtn = document.getElementById("matchBtn");
+  const matchModalOverlay = document.getElementById("matchModalOverlay");
+  const matchModalClose = document.getElementById("matchModalClose");
+  const matchFileInput = document.getElementById("matchFileInput");
+  const matchSummary = document.getElementById("matchSummary");
+  const matchPreviewTable = document.getElementById("matchPreviewTable");
+  const matchPreviewBody = document.getElementById("matchPreviewBody");
+  const matchApplyBtn = document.getElementById("matchApplyBtn");
+  const matchProgress = document.getElementById("matchProgress");
+
   let allProducts = [];
   let selectedSku = null;
 
   function isIncomplete(p) {
     return !p.parent_code || !p.product_name || !p.brand || !p.item_category;
+  }
+
+  function isUnmatched(p) {
+    return !p.parent_code;
   }
 
   async function checkSession() {
@@ -1046,6 +1115,177 @@
     completeMsg.className = "panelMsg ok";
     if (p && !isIncomplete(p)) {
       completeInfoBox.classList.add("hidden");
+    }
+  });
+
+  // ===== ccGoods突合 =====
+  let matchPlan = []; // [{sku, parent, name, brand, currentItemCategory, valid}]
+  let matchMasterInfo = { total: 0, dupCount: 0, blankCount: 0 };
+
+  matchBtn.addEventListener("click", () => {
+    matchModalOverlay.classList.remove("hidden");
+    resetMatchModal();
+  });
+  matchModalClose.addEventListener("click", () => {
+    matchModalOverlay.classList.add("hidden");
+  });
+
+  function resetMatchModal() {
+    matchFileInput.value = "";
+    matchFileInput.disabled = false;
+    matchSummary.textContent = "";
+    matchPreviewTable.classList.add("hidden");
+    matchPreviewBody.innerHTML = "";
+    matchApplyBtn.disabled = true;
+    matchProgress.textContent = "";
+    matchPlan = [];
+  }
+
+  // SKUをハイフン区切りで後ろから1階層ずつ削りながら、マスタに存在する最長の一致を探す
+  // （match_parent_code.py の find_parent と同じロジック）
+  function findParentInMaster(sku, masterMap) {
+    const parts = sku.trim().split("-");
+    for (let i = parts.length; i > 0; i--) {
+      const candidate = parts.slice(0, i).join("-");
+      if (masterMap.has(candidate)) return candidate;
+    }
+    return null;
+  }
+
+  matchFileInput.addEventListener("change", async () => {
+    const file = matchFileInput.files[0];
+    if (!file) return;
+    matchSummary.textContent = "解析中...(ファイルが大きいため少し時間がかかります)";
+    matchPreviewTable.classList.add("hidden");
+    matchApplyBtn.disabled = true;
+
+    let text;
+    try {
+      const buffer = await file.arrayBuffer();
+      // ccGoodsのCSVはCP932(Shift_JIS)。ブラウザのTextDecoderの"shift_jis"はWindows-31J相当でデコードされる
+      text = new TextDecoder("shift_jis").decode(buffer);
+    } catch (e) {
+      matchSummary.textContent = "ファイルの読み込みに失敗しました: " + e.message;
+      return;
+    }
+
+    const rows = parseCsvText(text);
+    if (rows.length < 2) {
+      matchSummary.textContent = "データ行が見つかりませんでした。";
+      return;
+    }
+
+    // 列名ベースで参照する（列の並び順が変わっても壊れないように）
+    const header = rows[0].map(cleanText);
+    const codeIdx = header.findIndex(h => h === "商品番号");
+    const nameIdx = header.findIndex(h => h === "商品名");
+    const groupIdx = header.findIndex(h => h === "メイングループ");
+
+    if (codeIdx === -1 || nameIdx === -1) {
+      matchSummary.textContent = "ヘッダー行に「商品番号」または「商品名」の列が見つかりません。ファイル形式を確認してください。";
+      return;
+    }
+
+    // マスタを構築。商品番号が空欄の行は除外、重複はマスタ重複チェックとして先勝ちで処理する
+    const masterMap = new Map(); // code -> { name, brand }
+    let dupCount = 0;
+    let blankCount = 0;
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      const code = cleanText(r[codeIdx]);
+      if (!code) { blankCount++; continue; }
+      if (masterMap.has(code)) { dupCount++; continue; }
+      const name = cleanText(r[nameIdx]);
+      let brand = null;
+      if (groupIdx !== -1) {
+        const group = cleanText(r[groupIdx]);
+        if (group.indexOf("ブランド別/") === 0) {
+          const segs = group.split("/");
+          brand = segs[segs.length - 1] || null;
+        }
+      }
+      masterMap.set(code, { name, brand });
+    }
+
+    const targets = allProducts.filter(isUnmatched);
+    const plan = targets.map(p => {
+      const parent = findParentInMaster(p.sku, masterMap);
+      if (!parent) {
+        return { sku: p.sku, parent: null, name: null, brand: null, currentItemCategory: p.item_category || null, valid: false };
+      }
+      const m = masterMap.get(parent);
+      const brand = p.brand ? p.brand : (m.brand || null); // 既にブランドがある行は上書きしない
+      return {
+        sku: p.sku,
+        parent,
+        name: m.name || null,
+        brand,
+        currentItemCategory: p.item_category || null,
+        valid: true
+      };
+    });
+
+    matchPlan = plan;
+    matchMasterInfo = { total: masterMap.size, dupCount, blankCount };
+    renderMatchPreview();
+  });
+
+  function renderMatchPreview() {
+    const validCount = matchPlan.filter(p => p.valid).length;
+    const totalTargets = matchPlan.length;
+    let summary = `未マッチSKU ${totalTargets}件中、${validCount}件が一致しました（マスタ${matchMasterInfo.total}件`;
+    if (matchMasterInfo.dupCount > 0) summary += `、商品番号の重複${matchMasterInfo.dupCount}件は先頭行のみ採用`;
+    if (matchMasterInfo.blankCount > 0) summary += `、商品番号が空欄の行${matchMasterInfo.blankCount}件は除外`;
+    summary += "）";
+    matchSummary.textContent = summary;
+
+    matchPreviewTable.classList.remove("hidden");
+    matchPreviewBody.innerHTML = matchPlan.map(p => `
+      <tr class="${p.valid ? "rowOk" : "rowError"}">
+        <td>${escapeHtml(p.sku)}</td>
+        <td>${p.valid ? escapeHtml(p.parent) : "-"}</td>
+        <td>${p.valid ? escapeHtml(p.name || "") : "-"}</td>
+        <td>${p.valid ? escapeHtml(p.brand || "") : "-"}</td>
+        <td>${p.valid ? "OK" : "一致なし"}</td>
+      </tr>
+    `).join("");
+    matchApplyBtn.disabled = validCount === 0;
+  }
+
+  matchApplyBtn.addEventListener("click", async () => {
+    const targets = matchPlan.filter(p => p.valid);
+    if (targets.length === 0) return;
+    matchApplyBtn.disabled = true;
+    matchFileInput.disabled = true;
+    let done = 0, failed = 0;
+    for (const p of targets) {
+      matchProgress.textContent = `反映中... ${done + failed + 1} / ${targets.length}`;
+      const { data, error } = await client.rpc("update_product_info", {
+        p_sku: p.sku,
+        p_parent_code: p.parent,
+        p_product_name: p.name,
+        p_brand: p.brand,
+        p_item_category: p.currentItemCategory
+      });
+      if (error) {
+        failed++;
+        p.valid = false;
+      } else {
+        done++;
+        const local = allProducts.find(r => r.sku === p.sku);
+        if (local) Object.assign(local, data);
+      }
+    }
+    matchFileInput.disabled = false;
+    renderTable(currentFilteredRows());
+    if (selectedSku) selectSku(selectedSku);
+
+    if (failed === 0) {
+      matchModalOverlay.classList.add("hidden");
+      resetMatchModal();
+    } else {
+      matchProgress.textContent = `完了: 成功 ${done}件 / 失敗 ${failed}件`;
+      renderMatchPreview();
     }
   });
 
