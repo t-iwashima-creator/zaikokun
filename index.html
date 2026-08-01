@@ -144,6 +144,11 @@
     border-radius: 6px;
     font-size: 13px;
   }
+  .modalStockRow {
+    display: flex;
+    gap: 10px;
+  }
+  .modalStockRow > div { flex: 1; }
   .modalFooter {
     padding: 14px 20px;
     border-top: 1px solid #eef1f4;
@@ -205,7 +210,7 @@
 
   /* main screen */
   main { padding: 20px 24px; }
-  #controls { margin-bottom: 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  #controls { margin-bottom: 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding-right: 280px; }
   #searchInput {
     flex: 1;
     min-width: 240px;
@@ -555,6 +560,21 @@
       <input type="text" id="newBrand" placeholder="わからなければ空欄でOK" />
       <label>アイテム</label>
       <input type="text" id="newItemCategory" placeholder="わからなければ空欄でOK" />
+      <label>初期在庫</label>
+      <div class="modalStockRow">
+        <div>
+          <label style="margin-top:0;">ネット</label>
+          <input type="number" id="newStockNet" step="1" placeholder="0" />
+        </div>
+        <div>
+          <label style="margin-top:0;">オクテット</label>
+          <input type="number" id="newStockOctet" step="1" placeholder="0" />
+        </div>
+        <div>
+          <label style="margin-top:0;">三好</label>
+          <input type="number" id="newStockMiyoshi" step="1" placeholder="0" />
+        </div>
+      </div>
     </div>
     <div class="modalFooter">
       <div id="addSkuMsg" class="modalMsg"></div>
@@ -621,6 +641,9 @@
   const newProductName = document.getElementById("newProductName");
   const newBrand = document.getElementById("newBrand");
   const newItemCategory = document.getElementById("newItemCategory");
+  const newStockNet = document.getElementById("newStockNet");
+  const newStockOctet = document.getElementById("newStockOctet");
+  const newStockMiyoshi = document.getElementById("newStockMiyoshi");
   const addSkuSubmitBtn = document.getElementById("addSkuSubmitBtn");
   const addSkuMsg = document.getElementById("addSkuMsg");
 
@@ -916,6 +939,9 @@
     newProductName.value = "";
     newBrand.value = "";
     newItemCategory.value = "";
+    newStockNet.value = "";
+    newStockOctet.value = "";
+    newStockMiyoshi.value = "";
     addSkuMsg.textContent = "";
     addSkuMsg.className = "modalMsg";
   });
@@ -945,7 +971,10 @@
       p_parent_code: newParentCode.value.trim() || null,
       p_product_name: newProductName.value.trim() || null,
       p_brand: newBrand.value.trim() || null,
-      p_item_category: newItemCategory.value.trim() || null
+      p_item_category: newItemCategory.value.trim() || null,
+      p_stock_net: parseInt(newStockNet.value, 10) || 0,
+      p_stock_octet: parseInt(newStockOctet.value, 10) || 0,
+      p_stock_miyoshi: parseInt(newStockMiyoshi.value, 10) || 0
     });
     addSkuSubmitBtn.disabled = false;
     addSkuSubmitBtn.textContent = "追加する";
