@@ -691,12 +691,12 @@
     </div>
     <div class="modalBody">
       <div class="hint">
-        品番（例: 00530-s-111）を入力して検索すると、その品番に属するSKU一覧を表示します。
-        在庫がネット・オクテット・三好すべて0のSKUだけチェックが入り、削除の対象にできます。在庫が残っているSKUは削除できません。
+        在庫がネット・オクテット・三好すべて0になっているSKUを一覧表示します。品番で絞り込みたいときは下の欄に入力してください（部分一致・任意）。
       </div>
-      <div style="display:flex; gap:8px;">
-        <input type="text" id="bulkDeleteParentCodeInput" placeholder="品番を入力（完全一致）" style="flex:1; padding:8px 10px; border:1px solid #cbd2d9; border-radius:6px; font-size:13px;" />
-        <button id="bulkDeleteSearchBtn" class="modalPrimaryBtn" style="width:auto;">検索</button>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input type="text" id="bulkDeleteParentCodeInput" placeholder="品番で絞り込み（任意・部分一致）" style="flex:1; padding:8px 10px; border:1px solid #cbd2d9; border-radius:6px; font-size:13px;" />
+        <button id="bulkDeleteSelectAllBtn" class="modalPrimaryBtn" style="width:auto; background:#fff; color:#1f6feb; border:1px solid #1f6feb;">すべて選択</button>
+        <button id="bulkDeleteDeselectAllBtn" class="modalPrimaryBtn" style="width:auto; background:#fff; color:#616e7c; border:1px solid #cbd2d9;">すべて解除</button>
       </div>
       <div id="bulkDeleteSummary" style="font-size:13px; color:#33415c; margin-top:10px;"></div>
       <div style="max-height: 45vh; overflow-y: auto; margin-top: 10px;">
@@ -704,12 +704,12 @@
           <thead>
             <tr>
               <th style="width:28px;"></th>
+              <th>品番</th>
               <th>SKU</th>
               <th>商品名</th>
               <th>ネット</th>
               <th>オクテット</th>
               <th>三好</th>
-              <th>状態</th>
             </tr>
           </thead>
           <tbody id="bulkDeletePreviewBody"></tbody>
@@ -1600,20 +1600,23 @@
   const bulkDeleteModalOverlay = document.getElementById("bulkDeleteModalOverlay");
   const bulkDeleteModalClose = document.getElementById("bulkDeleteModalClose");
   const bulkDeleteParentCodeInput = document.getElementById("bulkDeleteParentCodeInput");
-  const bulkDeleteSearchBtn = document.getElementById("bulkDeleteSearchBtn");
+  const bulkDeleteSelectAllBtn = document.getElementById("bulkDeleteSelectAllBtn");
+  const bulkDeleteDeselectAllBtn = document.getElementById("bulkDeleteDeselectAllBtn");
   const bulkDeleteSummary = document.getElementById("bulkDeleteSummary");
   const bulkDeletePreviewTable = document.getElementById("bulkDeletePreviewTable");
   const bulkDeletePreviewBody = document.getElementById("bulkDeletePreviewBody");
   const bulkDeleteApplyBtn = document.getElementById("bulkDeleteApplyBtn");
   const bulkDeleteProgress = document.getElementById("bulkDeleteProgress");
 
-  let bulkDeleteList = []; // [{sku, product_name, stock_net, stock_octet, stock_miyoshi, deletable, checked}]
+  // 在庫が全拠点0のSKU全件（品番フィルタをかけてもここから絞り込むだけで、
+  // checked状態はオブジェクト参照が同じなのでフィルタを変えても保持される）
+  let bulkDeleteFullList = []; // [{sku, parent_code, product_name, stock_net, stock_octet, stock_miyoshi, checked}]
 
   bulkDeleteBtn.addEventListener("click", () => {
     moreMenuPanel.classList.add("hidden");
     bulkDeleteModalOverlay.classList.remove("hidden");
     resetBulkDeleteModal();
-    bulkDeleteParentCodeInput.focus();
+    loadZeroStockList();
   });
   bulkDeleteModalClose.addEventListener("click", () => {
     bulkDeleteModalOverlay.classList.add("hidden");
@@ -1626,80 +1629,78 @@
     bulkDeletePreviewBody.innerHTML = "";
     bulkDeleteApplyBtn.disabled = true;
     bulkDeleteProgress.textContent = "";
-    bulkDeleteList = [];
+    bulkDeleteFullList = [];
   }
 
-  function runBulkDeleteSearch() {
-    const code = bulkDeleteParentCodeInput.value.trim();
-    if (!code) {
-      bulkDeleteSummary.textContent = "品番を入力してください";
-      bulkDeletePreviewTable.classList.add("hidden");
-      bulkDeleteApplyBtn.disabled = true;
-      bulkDeleteList = [];
-      return;
-    }
-    const matches = allProducts.filter(p => p.parent_code === code);
-    bulkDeleteList = matches.map(p => {
-      const deletable = (p.stock_net || 0) === 0 && (p.stock_octet || 0) === 0 && (p.stock_miyoshi || 0) === 0;
-      return {
+  function loadZeroStockList() {
+    bulkDeleteFullList = allProducts
+      .filter(p => (p.stock_net || 0) === 0 && (p.stock_octet || 0) === 0 && (p.stock_miyoshi || 0) === 0)
+      .map(p => ({
         sku: p.sku,
+        parent_code: p.parent_code || "",
         product_name: p.product_name,
         stock_net: p.stock_net || 0,
         stock_octet: p.stock_octet || 0,
         stock_miyoshi: p.stock_miyoshi || 0,
-        deletable,
-        checked: deletable
-      };
-    });
-
-    if (matches.length === 0) {
-      bulkDeleteSummary.textContent = `品番「${code}」に一致するSKUが見つかりませんでした`;
-      bulkDeletePreviewTable.classList.add("hidden");
-      bulkDeleteApplyBtn.disabled = true;
-      return;
-    }
-
+        checked: false
+      }));
     renderBulkDeletePreview();
   }
 
-  bulkDeleteSearchBtn.addEventListener("click", runBulkDeleteSearch);
-  bulkDeleteParentCodeInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") runBulkDeleteSearch();
+  function currentBulkDeleteFiltered() {
+    const q = bulkDeleteParentCodeInput.value.trim().toLowerCase();
+    if (!q) return bulkDeleteFullList;
+    return bulkDeleteFullList.filter(r => r.parent_code.toLowerCase().includes(q));
+  }
+
+  bulkDeleteParentCodeInput.addEventListener("input", () => {
+    renderBulkDeletePreview();
   });
 
   function renderBulkDeletePreview() {
-    const deletableCount = bulkDeleteList.filter(r => r.deletable).length;
-    bulkDeleteSummary.textContent = `${bulkDeleteList.length}件見つかりました（うち在庫0で削除可能: ${deletableCount}件）`;
+    const rows = currentBulkDeleteFiltered();
+    const checkedCount = bulkDeleteFullList.filter(r => r.checked).length;
+    bulkDeleteSummary.textContent = `在庫0のSKU: 全${bulkDeleteFullList.length}件中${rows.length}件を表示中（選択中: ${checkedCount}件）`;
     bulkDeletePreviewTable.classList.remove("hidden");
-    bulkDeletePreviewBody.innerHTML = bulkDeleteList.map((r, i) => `
-      <tr class="${r.deletable ? "" : "rowError"}">
-        <td><input type="checkbox" data-idx="${i}" ${r.checked ? "checked" : ""} ${r.deletable ? "" : "disabled"} /></td>
+    bulkDeletePreviewBody.innerHTML = rows.map((r) => `
+      <tr>
+        <td><input type="checkbox" data-sku="${escapeHtml(r.sku)}" ${r.checked ? "checked" : ""} /></td>
+        <td>${escapeHtml(r.parent_code || "(未マッチ)")}</td>
         <td>${escapeHtml(r.sku)}</td>
         <td>${escapeHtml(r.product_name || "")}</td>
         <td>${r.stock_net}</td>
         <td>${r.stock_octet}</td>
         <td>${r.stock_miyoshi}</td>
-        <td>${r.deletable ? "削除可能" : "在庫あり"}</td>
       </tr>
     `).join("");
 
     bulkDeletePreviewBody.querySelectorAll('input[type="checkbox"]').forEach(cb => {
       cb.addEventListener("change", () => {
-        const idx = Number(cb.dataset.idx);
-        bulkDeleteList[idx].checked = cb.checked;
+        const row = bulkDeleteFullList.find(r => r.sku === cb.dataset.sku);
+        if (row) row.checked = cb.checked;
         updateBulkDeleteApplyBtn();
+        bulkDeleteSummary.textContent = `在庫0のSKU: 全${bulkDeleteFullList.length}件中${rows.length}件を表示中（選択中: ${bulkDeleteFullList.filter(r => r.checked).length}件）`;
       });
     });
     updateBulkDeleteApplyBtn();
   }
 
+  bulkDeleteSelectAllBtn.addEventListener("click", () => {
+    currentBulkDeleteFiltered().forEach(r => { r.checked = true; });
+    renderBulkDeletePreview();
+  });
+  bulkDeleteDeselectAllBtn.addEventListener("click", () => {
+    currentBulkDeleteFiltered().forEach(r => { r.checked = false; });
+    renderBulkDeletePreview();
+  });
+
   function updateBulkDeleteApplyBtn() {
-    const anyChecked = bulkDeleteList.some(r => r.deletable && r.checked);
+    const anyChecked = bulkDeleteFullList.some(r => r.checked);
     bulkDeleteApplyBtn.disabled = !anyChecked;
   }
 
   bulkDeleteApplyBtn.addEventListener("click", async () => {
-    const targets = bulkDeleteList.filter(r => r.deletable && r.checked);
+    const targets = bulkDeleteFullList.filter(r => r.checked);
     if (targets.length === 0) return;
     if (!confirm(`選択した${targets.length}件のSKUを削除します。よろしいですか？（この操作は取り消せません）`)) return;
 
@@ -1725,7 +1726,7 @@
       resetBulkDeleteModal();
     } else {
       bulkDeleteProgress.textContent = `完了: 成功 ${done}件 / 失敗 ${failed}件`;
-      runBulkDeleteSearch();
+      loadZeroStockList();
     }
   });
 
