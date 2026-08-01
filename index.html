@@ -871,9 +871,16 @@
       }
     }
     csvFileInput.disabled = false;
-    csvProgress.textContent = `完了: 成功 ${done}件 / 失敗 ${failed}件`;
-    renderCsvPreview();
     renderTable(currentFilteredRows());
+
+    if (failed === 0) {
+      // 全件成功したらモーダルを閉じる
+      csvModalOverlay.classList.add("hidden");
+      resetCsvModal();
+    } else {
+      csvProgress.textContent = `完了: 成功 ${done}件 / 失敗 ${failed}件`;
+      renderCsvPreview();
+    }
   });
 
   checkSession();
