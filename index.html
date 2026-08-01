@@ -455,7 +455,7 @@
         <button id="moreMenuBtn" title="その他">⋯</button>
         <div id="moreMenuPanel" class="hidden">
           <button id="downloadCsvBtn">在庫CSVをダウンロード</button>
-          <button id="bulkDeleteBtn">品番で在庫0のSKUを削除</button>
+          <button id="bulkDeleteBtn">在庫が一点もない品番を削除</button>
         </div>
       </div>
       <button id="logoutBtn">ログアウト</button>
@@ -686,12 +686,13 @@
 <div id="bulkDeleteModalOverlay" class="modalOverlay hidden">
   <div class="modalBox modalBoxWide">
     <div class="modalHeader">
-      <h2>品番で在庫0のSKUを削除</h2>
+      <h2>在庫が一点もない品番を削除</h2>
       <button id="bulkDeleteModalClose" class="modalClose">✕</button>
     </div>
     <div class="modalBody">
       <div class="hint">
-        在庫がネット・オクテット・三好すべて0になっているSKUを一覧表示します。品番で絞り込みたいときは下の欄に入力してください（部分一致・任意）。
+        品番（商品）ごとにまとめて判定し、その品番に属するSKUすべての在庫（ネット・オクテット・三好）が0になっている品番だけを一覧表示します。
+        選択すると、その品番配下の全SKUをまとめて削除します。品番で絞り込みたいときは下の欄に入力してください（部分一致・任意）。
       </div>
       <div style="display:flex; gap:8px; align-items:center;">
         <input type="text" id="bulkDeleteParentCodeInput" placeholder="品番で絞り込み（任意・部分一致）" style="flex:1; padding:8px 10px; border:1px solid #cbd2d9; border-radius:6px; font-size:13px;" />
@@ -705,11 +706,9 @@
             <tr>
               <th style="width:28px;"></th>
               <th>品番</th>
-              <th>SKU</th>
-              <th>商品名</th>
-              <th>ネット</th>
-              <th>オクテット</th>
-              <th>三好</th>
+              <th>代表商品名</th>
+              <th>SKU数</th>
+              <th>該当SKU</th>
             </tr>
           </thead>
           <tbody id="bulkDeletePreviewBody"></tbody>
@@ -1608,15 +1607,15 @@
   const bulkDeleteApplyBtn = document.getElementById("bulkDeleteApplyBtn");
   const bulkDeleteProgress = document.getElementById("bulkDeleteProgress");
 
-  // 在庫が全拠点0のSKU全件（品番フィルタをかけてもここから絞り込むだけで、
-  // checked状態はオブジェクト参照が同じなのでフィルタを変えても保持される）
-  let bulkDeleteFullList = []; // [{sku, parent_code, product_name, stock_net, stock_octet, stock_miyoshi, checked}]
+  // 品番ごとにグルーピングし、配下の全SKUが在庫0の品番だけを対象にする
+  // （品番が空欄のSKUは他と混ざらないよう、SKU単体を1グループとして扱う）
+  let bulkDeleteFullList = []; // [{key, parentCode, productName, skus: [sku,...], checked}]
 
   bulkDeleteBtn.addEventListener("click", () => {
     moreMenuPanel.classList.add("hidden");
     bulkDeleteModalOverlay.classList.remove("hidden");
     resetBulkDeleteModal();
-    loadZeroStockList();
+    loadZeroStockGroups();
   });
   bulkDeleteModalClose.addEventListener("click", () => {
     bulkDeleteModalOverlay.classList.add("hidden");
@@ -1632,54 +1631,73 @@
     bulkDeleteFullList = [];
   }
 
-  function loadZeroStockList() {
-    bulkDeleteFullList = allProducts
-      .filter(p => (p.stock_net || 0) === 0 && (p.stock_octet || 0) === 0 && (p.stock_miyoshi || 0) === 0)
-      .map(p => ({
-        sku: p.sku,
-        parent_code: p.parent_code || "",
-        product_name: p.product_name,
-        stock_net: p.stock_net || 0,
-        stock_octet: p.stock_octet || 0,
-        stock_miyoshi: p.stock_miyoshi || 0,
+  function loadZeroStockGroups() {
+    const groups = new Map(); // key -> { parentCode, productNames: Set, skus: [] }
+    for (const p of allProducts) {
+      const parentCode = p.parent_code || "";
+      const key = parentCode ? "pc:" + parentCode : "sku:" + p.sku;
+      if (!groups.has(key)) {
+        groups.set(key, { parentCode, productNames: new Set(), skus: [], allZero: true });
+      }
+      const g = groups.get(key);
+      g.skus.push(p.sku);
+      if (p.product_name) g.productNames.add(p.product_name);
+      const zero = (p.stock_net || 0) === 0 && (p.stock_octet || 0) === 0 && (p.stock_miyoshi || 0) === 0;
+      if (!zero) g.allZero = false;
+    }
+
+    bulkDeleteFullList = [];
+    groups.forEach((g, key) => {
+      if (!g.allZero) return;
+      bulkDeleteFullList.push({
+        key,
+        parentCode: g.parentCode,
+        productName: g.productNames.size > 0 ? [...g.productNames][0] : "",
+        skus: g.skus,
         checked: false
-      }));
+      });
+    });
+    bulkDeleteFullList.sort((a, b) => (a.parentCode || a.skus[0]).localeCompare(b.parentCode || b.skus[0]));
+
     renderBulkDeletePreview();
   }
 
   function currentBulkDeleteFiltered() {
     const q = bulkDeleteParentCodeInput.value.trim().toLowerCase();
     if (!q) return bulkDeleteFullList;
-    return bulkDeleteFullList.filter(r => r.parent_code.toLowerCase().includes(q));
+    return bulkDeleteFullList.filter(r => (r.parentCode || "").toLowerCase().includes(q));
   }
 
   bulkDeleteParentCodeInput.addEventListener("input", () => {
     renderBulkDeletePreview();
   });
 
+  function bulkDeleteSummaryText(rows) {
+    const checkedCount = bulkDeleteFullList.filter(r => r.checked).length;
+    const checkedSkuCount = bulkDeleteFullList.filter(r => r.checked).reduce((sum, r) => sum + r.skus.length, 0);
+    return `在庫が一点もない品番: 全${bulkDeleteFullList.length}件中${rows.length}件を表示中（選択中: ${checkedCount}件 / 対象SKU合計${checkedSkuCount}件）`;
+  }
+
   function renderBulkDeletePreview() {
     const rows = currentBulkDeleteFiltered();
-    const checkedCount = bulkDeleteFullList.filter(r => r.checked).length;
-    bulkDeleteSummary.textContent = `在庫0のSKU: 全${bulkDeleteFullList.length}件中${rows.length}件を表示中（選択中: ${checkedCount}件）`;
+    bulkDeleteSummary.textContent = bulkDeleteSummaryText(rows);
     bulkDeletePreviewTable.classList.remove("hidden");
     bulkDeletePreviewBody.innerHTML = rows.map((r) => `
       <tr>
-        <td><input type="checkbox" data-sku="${escapeHtml(r.sku)}" ${r.checked ? "checked" : ""} /></td>
-        <td>${escapeHtml(r.parent_code || "(未マッチ)")}</td>
-        <td>${escapeHtml(r.sku)}</td>
-        <td>${escapeHtml(r.product_name || "")}</td>
-        <td>${r.stock_net}</td>
-        <td>${r.stock_octet}</td>
-        <td>${r.stock_miyoshi}</td>
+        <td><input type="checkbox" data-key="${escapeHtml(r.key)}" ${r.checked ? "checked" : ""} /></td>
+        <td>${escapeHtml(r.parentCode || "(品番未設定)")}</td>
+        <td>${escapeHtml(r.productName || "(商品名未設定)")}</td>
+        <td>${r.skus.length}</td>
+        <td title="${escapeHtml(r.skus.join(", "))}">${escapeHtml(r.skus.slice(0, 3).join(", "))}${r.skus.length > 3 ? ` 他${r.skus.length - 3}件` : ""}</td>
       </tr>
     `).join("");
 
     bulkDeletePreviewBody.querySelectorAll('input[type="checkbox"]').forEach(cb => {
       cb.addEventListener("change", () => {
-        const row = bulkDeleteFullList.find(r => r.sku === cb.dataset.sku);
+        const row = bulkDeleteFullList.find(r => r.key === cb.dataset.key);
         if (row) row.checked = cb.checked;
         updateBulkDeleteApplyBtn();
-        bulkDeleteSummary.textContent = `在庫0のSKU: 全${bulkDeleteFullList.length}件中${rows.length}件を表示中（選択中: ${bulkDeleteFullList.filter(r => r.checked).length}件）`;
+        bulkDeleteSummary.textContent = bulkDeleteSummaryText(rows);
       });
     });
     updateBulkDeleteApplyBtn();
@@ -1700,20 +1718,21 @@
   }
 
   bulkDeleteApplyBtn.addEventListener("click", async () => {
-    const targets = bulkDeleteFullList.filter(r => r.checked);
-    if (targets.length === 0) return;
-    if (!confirm(`選択した${targets.length}件のSKUを削除します。よろしいですか？（この操作は取り消せません）`)) return;
+    const targetGroups = bulkDeleteFullList.filter(r => r.checked);
+    if (targetGroups.length === 0) return;
+    const targets = targetGroups.flatMap(g => g.skus);
+    if (!confirm(`選択した${targetGroups.length}品番（SKU合計${targets.length}件）を削除します。よろしいですか？（この操作は取り消せません）`)) return;
 
     bulkDeleteApplyBtn.disabled = true;
     let done = 0, failed = 0;
-    for (const r of targets) {
+    for (const sku of targets) {
       bulkDeleteProgress.textContent = `削除中... ${done + failed + 1} / ${targets.length}`;
-      const { error } = await client.rpc("delete_product", { p_sku: r.sku });
+      const { error } = await client.rpc("delete_product", { p_sku: sku });
       if (error) {
         failed++;
       } else {
         done++;
-        allProducts = allProducts.filter(p => p.sku !== r.sku);
+        allProducts = allProducts.filter(p => p.sku !== sku);
       }
     }
     renderTable(currentFilteredRows());
@@ -1726,7 +1745,7 @@
       resetBulkDeleteModal();
     } else {
       bulkDeleteProgress.textContent = `完了: 成功 ${done}件 / 失敗 ${failed}件`;
-      loadZeroStockList();
+      loadZeroStockGroups();
     }
   });
 
