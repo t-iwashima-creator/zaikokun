@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>在庫君 - 在庫照会</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    margin: 0;
+    background: #f5f6f8;
+    color: #1a1a1a;
+  }
+  header {
+    background: #1f2933;
+    color: #fff;
+    padding: 16px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  #logoutBtn {
+    background: transparent;
+    border: 1px solid #cbd2d9;
+    color: #fff;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  #logoutBtn:hover { background: #323f4b; }
+
+  /* login screen */
+  #loginScreen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+  }
+  #loginBox {
+    background: #fff;
+    padding: 32px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    width: 320px;
+  }
+  #loginBox h2 { margin-top: 0; font-size: 18px; }
+  #loginBox input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 12px;
+    border: 1px solid #cbd2d9;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  #loginBox button {
+    width: 100%;
+    padding: 10px;
+    background: #1f6feb;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #loginBox button:hover { background: #1a5fc7; }
+  #loginError { color: #cc3344; font-size: 13px; margin-top: -4px; margin-bottom: 12px; min-height: 16px; }
+
+  /* main screen */
+  main { padding: 20px 24px; }
+  #controls { margin-bottom: 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  #searchInput {
+    flex: 1;
+    min-width: 240px;
+    padding: 10px 12px;
+    border: 1px solid #cbd2d9;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  #rowCount { color: #616e7c; font-size: 13px; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  thead th {
+    background: #eef1f4;
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: #52606d;
+    position: sticky;
+    top: 0;
+  }
+  tbody td {
+    padding: 8px 12px;
+    font-size: 13px;
+    border-top: 1px solid #eef1f4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 320px;
+  }
+  tbody tr:hover { background: #f8fafc; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .zero { color: #b0b7c3; }
+  .unmatched { color: #cc3344; }
+
+  #loadingMsg, #errorMsg { padding: 40px; text-align: center; color: #616e7c; }
+  #errorMsg { color: #cc3344; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div id="loginBox">
+    <h2>在庫君 ログイン</h2>
+    <input type="email" id="emailInput" placeholder="メールアドレス" autocomplete="username" />
+    <input type="password" id="passwordInput" placeholder="パスワード" autocomplete="current-password" />
+    <div id="loginError"></div>
+    <button id="loginBtn">ログイン</button>
+  </div>
+</div>
+
+<div id="appScreen" class="hidden">
+  <header>
+    <h1>在庫君 - 在庫照会</h1>
+    <button id="logoutBtn">ログアウト</button>
+  </header>
+  <main>
+    <div id="controls">
+      <input type="text" id="searchInput" placeholder="SKU・商品番号・商品名・ブランドで検索" />
+      <span id="rowCount"></span>
+    </div>
+    <div id="loadingMsg">読み込み中...</div>
+    <div id="errorMsg" class="hidden"></div>
+    <table id="productsTable" class="hidden">
+      <thead>
+        <tr>
+          <th>品番</th>
+          <th>SKU</th>
+          <th>商品名</th>
+          <th>ブランド</th>
+          <th>アイテム</th>
+          <th>ネット</th>
+          <th>オクテット</th>
+          <th>三好</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+  // ▼▼▼ ここをSupabaseプロジェクトの値に置き換えてください ▼▼▼
+  const SUPABASE_URL = "https://fyzgtfdcehwtuhzkgbbq.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_3nMdUCv75vhhsn3ZNpesRw_AKxJSzz3";
+  // ▲▲▲ ここまで ▲▲▲
+
+  const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const loginScreen = document.getElementById("loginScreen");
+  const appScreen = document.getElementById("appScreen");
+  const loginBtn = document.getElementById("loginBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
+  const emailInput = document.getElementById("emailInput");
+  const passwordInput = document.getElementById("passwordInput");
+  const loginError = document.getElementById("loginError");
+  const searchInput = document.getElementById("searchInput");
+  const tableBody = document.getElementById("tableBody");
+  const productsTable = document.getElementById("productsTable");
+  const loadingMsg = document.getElementById("loadingMsg");
+  const errorMsg = document.getElementById("errorMsg");
+  const rowCount = document.getElementById("rowCount");
+
+  let allProducts = [];
+
+  async function checkSession() {
+    const { data: { session } } = await client.auth.getSession();
+    if (session) {
+      showApp();
+    } else {
+      showLogin();
+    }
+  }
+
+  function showLogin() {
+    loginScreen.classList.remove("hidden");
+    appScreen.classList.add("hidden");
+  }
+
+  function showApp() {
+    loginScreen.classList.add("hidden");
+    appScreen.classList.remove("hidden");
+    loadProducts();
+  }
+
+  loginBtn.addEventListener("click", async () => {
+    loginError.textContent = "";
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+    if (!email || !password) {
+      loginError.textContent = "メールアドレスとパスワードを入力してください";
+      return;
+    }
+    loginBtn.disabled = true;
+    loginBtn.textContent = "ログイン中...";
+    const { error } = await client.auth.signInWithPassword({ email, password });
+    loginBtn.disabled = false;
+    loginBtn.textContent = "ログイン";
+    if (error) {
+      loginError.textContent = "ログインに失敗しました（メールアドレスかパスワードが違います）";
+      return;
+    }
+    showApp();
+  });
+
+  passwordInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") loginBtn.click();
+  });
+
+  logoutBtn.addEventListener("click", async () => {
+    await client.auth.signOut();
+    showLogin();
+  });
+
+  async function loadProducts() {
+    loadingMsg.classList.remove("hidden");
+    errorMsg.classList.add("hidden");
+    productsTable.classList.add("hidden");
+
+    let all = [];
+    let from = 0;
+    const pageSize = 1000;
+    while (true) {
+      const { data, error } = await client
+        .from("products")
+        .select("parent_code, sku, product_name, brand, item_category, stock_net, stock_octet, stock_miyoshi")
+        .order("sku", { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) {
+        loadingMsg.classList.add("hidden");
+        errorMsg.textContent = "データの取得に失敗しました: " + error.message;
+        errorMsg.classList.remove("hidden");
+        return;
+      }
+      all = all.concat(data);
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+
+    allProducts = all;
+    loadingMsg.classList.add("hidden");
+    productsTable.classList.remove("hidden");
+    renderTable(allProducts);
+  }
+
+  function cell(v, isNum) {
+    if (isNum) {
+      const n = Number(v) || 0;
+      return `<td class="num${n === 0 ? " zero" : ""}">${n}</td>`;
+    }
+    const text = v ? escapeHtml(v) : "";
+    return `<td>${text}</td>`;
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function renderTable(rows) {
+    tableBody.innerHTML = rows.map(r => `
+      <tr>
+        <td class="${r.parent_code ? "" : "unmatched"}">${r.parent_code ? escapeHtml(r.parent_code) : "(未マッチ)"}</td>
+        <td>${escapeHtml(r.sku)}</td>
+        ${cell(r.product_name)}
+        ${cell(r.brand)}
+        ${cell(r.item_category)}
+        ${cell(r.stock_net, true)}
+        ${cell(r.stock_octet, true)}
+        ${cell(r.stock_miyoshi, true)}
+      </tr>
+    `).join("");
+    rowCount.textContent = `${rows.length}件`;
+  }
+
+  searchInput.addEventListener("input", () => {
+    const q = searchInput.value.trim().toLowerCase();
+    if (!q) {
+      renderTable(allProducts);
+      return;
+    }
+    const filtered = allProducts.filter(r =>
+      (r.sku || "").toLowerCase().includes(q) ||
+      (r.parent_code || "").toLowerCase().includes(q) ||
+      (r.product_name || "").toLowerCase().includes(q) ||
+      (r.brand || "").toLowerCase().includes(q)
+    );
+    renderTable(filtered);
+  });
+
+  checkSession();
+</script>
+</body>
+</html>
