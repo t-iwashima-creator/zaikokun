@@ -26,7 +26,7 @@
   }
   header h1 { font-size: 18px; margin: 0; }
   #headerActions { display: flex; gap: 10px; }
-  #csvBtn, #logoutBtn {
+  #csvBtn, #addSkuBtn, #logoutBtn {
     background: transparent;
     border: 1px solid #cbd2d9;
     color: #fff;
@@ -37,6 +37,8 @@
   }
   #csvBtn { background: #2f7dd9; border-color: #2f7dd9; }
   #csvBtn:hover { background: #2568b8; }
+  #addSkuBtn { background: #2f9e58; border-color: #2f9e58; }
+  #addSkuBtn:hover { background: #278049; }
   #logoutBtn:hover { background: #323f4b; }
 
   /* CSV import modal */
@@ -97,6 +99,74 @@
   #csvApplyBtn:disabled { background: #9aa5b1; cursor: not-allowed; }
   #csvProgress { font-size: 12px; color: #616e7c; margin-top: 8px; white-space: pre-line; }
 
+  /* generic modal (SKU追加などで使用) */
+  .modalOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+  }
+  .modalBox {
+    background: #fff;
+    border-radius: 10px;
+    width: 420px;
+    max-width: 94vw;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .modalHeader {
+    padding: 16px 20px;
+    border-bottom: 1px solid #eef1f4;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .modalHeader h2 { margin: 0; font-size: 16px; }
+  .modalClose { background: none; border: none; font-size: 18px; cursor: pointer; color: #616e7c; }
+  .modalBody { padding: 16px 20px; overflow-y: auto; }
+  .modalBody label {
+    display: block;
+    font-size: 12px;
+    color: #616e7c;
+    margin-bottom: 3px;
+    margin-top: 10px;
+  }
+  .modalBody label:first-of-type { margin-top: 0; }
+  .modalBody input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #cbd2d9;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .modalFooter {
+    padding: 14px 20px;
+    border-top: 1px solid #eef1f4;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    align-items: center;
+  }
+  .modalMsg { font-size: 12px; margin-right: auto; }
+  .modalMsg.ok { color: #1a7f37; }
+  .modalMsg.err { color: #cc3344; }
+  .modalPrimaryBtn {
+    background: #1f6feb;
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .modalPrimaryBtn:hover { background: #1a5fc7; }
+  .modalPrimaryBtn:disabled { background: #9aa5b1; cursor: not-allowed; }
+
   /* login screen */
   #loginScreen {
     display: flex;
@@ -144,6 +214,15 @@
     border-radius: 6px;
     font-size: 14px;
   }
+  #incompleteOnlyLabel {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #52606d;
+    white-space: nowrap;
+  }
+  #incompleteOnlyLabel input { width: auto; }
   #rowCount { color: #616e7c; font-size: 13px; }
 
   /* two-column layout: table + side panel */
@@ -225,9 +304,16 @@
   }
   .panelBox button:hover { background: #1a5fc7; }
   .panelBox button:disabled { background: #9aa5b1; cursor: not-allowed; }
+  .panelBox button.dangerBtn {
+    background: #fff;
+    color: #cc3344;
+    border: 1px solid #cc3344;
+  }
+  .panelBox button.dangerBtn:hover:not(:disabled) { background: #fff5f5; }
   .panelMsg { font-size: 12px; margin-top: 8px; min-height: 16px; }
   .panelMsg.ok { color: #1a7f37; }
   .panelMsg.err { color: #cc3344; }
+  .panelNote { font-size: 11px; color: #9aa5b1; margin-top: 6px; line-height: 1.5; }
 
   table {
     width: 100%;
@@ -302,6 +388,7 @@
   <header>
     <h1>在庫君 - 在庫照会</h1>
     <div id="headerActions">
+      <button id="addSkuBtn">SKU追加</button>
       <button id="csvBtn">CSV一括反映</button>
       <button id="logoutBtn">ログアウト</button>
     </div>
@@ -309,6 +396,10 @@
   <main>
     <div id="controls">
       <input type="text" id="searchInput" placeholder="SKU・商品番号・商品名・ブランドで検索" />
+      <label id="incompleteOnlyLabel">
+        <input type="checkbox" id="incompleteOnlyCheckbox" />
+        品番・商品名など未設定のみ表示
+      </label>
       <span id="rowCount"></span>
     </div>
     <div id="loadingMsg">読み込み中...</div>
@@ -350,6 +441,22 @@
         <div class="panelBox">
           <h3>選択中の商品</h3>
           <div id="selectedSkuBox" class="empty">表の行をクリックすると選択されます</div>
+          <button id="deleteSkuBtn" class="dangerBtn" disabled>このSKUを削除</button>
+          <div id="deleteMsg" class="panelMsg"></div>
+        </div>
+
+        <div class="panelBox hidden" id="completeInfoBox">
+          <h3>商品情報の補完</h3>
+          <label>品番</label>
+          <input type="text" id="completeParentCode" placeholder="品番" />
+          <label>商品名</label>
+          <input type="text" id="completeProductName" placeholder="商品名" />
+          <label>ブランド</label>
+          <input type="text" id="completeBrand" placeholder="ブランド" />
+          <label>アイテム</label>
+          <input type="text" id="completeItemCategory" placeholder="アイテム" />
+          <button id="completeSubmitBtn">保存</button>
+          <div id="completeMsg" class="panelMsg"></div>
         </div>
 
         <div class="panelBox">
@@ -431,6 +538,31 @@
   </div>
 </div>
 
+<div id="addSkuModalOverlay" class="modalOverlay hidden">
+  <div class="modalBox">
+    <div class="modalHeader">
+      <h2>SKUを追加</h2>
+      <button id="addSkuModalClose" class="modalClose">✕</button>
+    </div>
+    <div class="modalBody">
+      <label>SKU（必須）</label>
+      <input type="text" id="newSkuInput" placeholder="例: abc-12345-1" />
+      <label>品番</label>
+      <input type="text" id="newParentCode" placeholder="わからなければ空欄でOK" />
+      <label>商品名</label>
+      <input type="text" id="newProductName" placeholder="わからなければ空欄でOK" />
+      <label>ブランド</label>
+      <input type="text" id="newBrand" placeholder="わからなければ空欄でOK" />
+      <label>アイテム</label>
+      <input type="text" id="newItemCategory" placeholder="わからなければ空欄でOK" />
+    </div>
+    <div class="modalFooter">
+      <div id="addSkuMsg" class="modalMsg"></div>
+      <button id="addSkuSubmitBtn" class="modalPrimaryBtn">追加する</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
   // ▼▼▼ Supabaseプロジェクトの値 ▼▼▼
@@ -449,6 +581,7 @@
   const passwordInput = document.getElementById("passwordInput");
   const loginError = document.getElementById("loginError");
   const searchInput = document.getElementById("searchInput");
+  const incompleteOnlyCheckbox = document.getElementById("incompleteOnlyCheckbox");
   const tableBody = document.getElementById("tableBody");
   const layout = document.getElementById("layout");
   const loadingMsg = document.getElementById("loadingMsg");
@@ -469,8 +602,34 @@
   const transSubmitBtn = document.getElementById("transSubmitBtn");
   const transMsg = document.getElementById("transMsg");
 
+  const deleteSkuBtn = document.getElementById("deleteSkuBtn");
+  const deleteMsg = document.getElementById("deleteMsg");
+
+  const completeInfoBox = document.getElementById("completeInfoBox");
+  const completeParentCode = document.getElementById("completeParentCode");
+  const completeProductName = document.getElementById("completeProductName");
+  const completeBrand = document.getElementById("completeBrand");
+  const completeItemCategory = document.getElementById("completeItemCategory");
+  const completeSubmitBtn = document.getElementById("completeSubmitBtn");
+  const completeMsg = document.getElementById("completeMsg");
+
+  const addSkuBtn = document.getElementById("addSkuBtn");
+  const addSkuModalOverlay = document.getElementById("addSkuModalOverlay");
+  const addSkuModalClose = document.getElementById("addSkuModalClose");
+  const newSkuInput = document.getElementById("newSkuInput");
+  const newParentCode = document.getElementById("newParentCode");
+  const newProductName = document.getElementById("newProductName");
+  const newBrand = document.getElementById("newBrand");
+  const newItemCategory = document.getElementById("newItemCategory");
+  const addSkuSubmitBtn = document.getElementById("addSkuSubmitBtn");
+  const addSkuMsg = document.getElementById("addSkuMsg");
+
   let allProducts = [];
   let selectedSku = null;
+
+  function isIncomplete(p) {
+    return !p.parent_code || !p.product_name || !p.brand || !p.item_category;
+  }
 
   async function checkSession() {
     const { data: { session } } = await client.auth.getSession();
@@ -549,7 +708,7 @@
     allProducts = all;
     loadingMsg.classList.add("hidden");
     layout.classList.remove("hidden");
-    renderTable(allProducts);
+    renderTable(currentFilteredRows());
   }
 
   function cell(v, isNum) {
@@ -598,12 +757,37 @@
         ${escapeHtml(p.product_name || "(商品名未設定)")}<br>
         ネット:${p.stock_net} / オクテット:${p.stock_octet} / 三好:${p.stock_miyoshi}
       `;
+
+      const allZero = (p.stock_net || 0) === 0 && (p.stock_octet || 0) === 0 && (p.stock_miyoshi || 0) === 0;
+      deleteSkuBtn.disabled = !allZero;
+      deleteSkuBtn.title = allZero ? "" : "在庫が0でないため削除できません";
+
+      if (isIncomplete(p)) {
+        completeInfoBox.classList.remove("hidden");
+        completeParentCode.value = p.parent_code || "";
+        completeProductName.value = p.product_name || "";
+        completeBrand.value = p.brand || "";
+        completeItemCategory.value = p.item_category || "";
+      } else {
+        completeInfoBox.classList.add("hidden");
+      }
     }
     document.querySelectorAll("#tableBody tr").forEach(tr => {
       tr.classList.toggle("selected", tr.dataset.sku === sku);
     });
     adjMsg.textContent = "";
     transMsg.textContent = "";
+    deleteMsg.textContent = "";
+    completeMsg.textContent = "";
+  }
+
+  function clearSelection() {
+    selectedSku = null;
+    selectedSkuBox.classList.add("empty");
+    selectedSkuBox.textContent = "表の行をクリックすると選択されます";
+    deleteSkuBtn.disabled = true;
+    deleteSkuBtn.title = "";
+    completeInfoBox.classList.add("hidden");
   }
 
   function updateLocalStock(sku, updates) {
@@ -615,8 +799,12 @@
 
   function currentFilteredRows() {
     const q = searchInput.value.trim().toLowerCase();
-    if (!q) return allProducts;
-    return allProducts.filter(r =>
+    let rows = allProducts;
+    if (incompleteOnlyCheckbox.checked) {
+      rows = rows.filter(isIncomplete);
+    }
+    if (!q) return rows;
+    return rows.filter(r =>
       (r.sku || "").toLowerCase().includes(q) ||
       (r.parent_code || "").toLowerCase().includes(q) ||
       (r.product_name || "").toLowerCase().includes(q) ||
@@ -625,6 +813,10 @@
   }
 
   searchInput.addEventListener("input", () => {
+    renderTable(currentFilteredRows());
+  });
+
+  incompleteOnlyCheckbox.addEventListener("change", () => {
     renderTable(currentFilteredRows());
   });
 
@@ -714,6 +906,118 @@
     transMsg.className = "panelMsg ok";
     transAmount.value = "";
     transReason.value = "";
+  });
+
+  // ===== SKU追加 =====
+  addSkuBtn.addEventListener("click", () => {
+    addSkuModalOverlay.classList.remove("hidden");
+    newSkuInput.value = "";
+    newParentCode.value = "";
+    newProductName.value = "";
+    newBrand.value = "";
+    newItemCategory.value = "";
+    addSkuMsg.textContent = "";
+    addSkuMsg.className = "modalMsg";
+  });
+
+  addSkuModalClose.addEventListener("click", () => {
+    addSkuModalOverlay.classList.add("hidden");
+  });
+
+  addSkuSubmitBtn.addEventListener("click", async () => {
+    addSkuMsg.textContent = "";
+    addSkuMsg.className = "modalMsg";
+    const sku = newSkuInput.value.trim();
+    if (!sku) {
+      addSkuMsg.textContent = "SKUを入力してください";
+      addSkuMsg.className = "modalMsg err";
+      return;
+    }
+    if (allProducts.some(p => p.sku === sku)) {
+      addSkuMsg.textContent = `SKU「${sku}」は既に登録されています`;
+      addSkuMsg.className = "modalMsg err";
+      return;
+    }
+    addSkuSubmitBtn.disabled = true;
+    addSkuSubmitBtn.textContent = "追加中...";
+    const { data, error } = await client.rpc("add_product", {
+      p_sku: sku,
+      p_parent_code: newParentCode.value.trim() || null,
+      p_product_name: newProductName.value.trim() || null,
+      p_brand: newBrand.value.trim() || null,
+      p_item_category: newItemCategory.value.trim() || null
+    });
+    addSkuSubmitBtn.disabled = false;
+    addSkuSubmitBtn.textContent = "追加する";
+    if (error) {
+      addSkuMsg.textContent = "エラー: " + error.message;
+      addSkuMsg.className = "modalMsg err";
+      return;
+    }
+    allProducts.push(data);
+    allProducts.sort((a, b) => (a.sku || "").localeCompare(b.sku || ""));
+    renderTable(currentFilteredRows());
+    addSkuModalOverlay.classList.add("hidden");
+    selectSku(sku);
+  });
+
+  // ===== SKU削除 =====
+  deleteSkuBtn.addEventListener("click", async () => {
+    if (!selectedSku) return;
+    const p = allProducts.find(r => r.sku === selectedSku);
+    if (!p) return;
+    const allZero = (p.stock_net || 0) === 0 && (p.stock_octet || 0) === 0 && (p.stock_miyoshi || 0) === 0;
+    if (!allZero) return;
+    if (!confirm(`SKU「${selectedSku}」を削除します。よろしいですか？（この操作は取り消せません）`)) return;
+
+    deleteSkuBtn.disabled = true;
+    deleteMsg.textContent = "";
+    deleteMsg.className = "panelMsg";
+    const { error } = await client.rpc("delete_product", { p_sku: selectedSku });
+    if (error) {
+      deleteMsg.textContent = "エラー: " + error.message;
+      deleteMsg.className = "panelMsg err";
+      deleteSkuBtn.disabled = false;
+      return;
+    }
+    allProducts = allProducts.filter(r => r.sku !== selectedSku);
+    clearSelection();
+    renderTable(currentFilteredRows());
+  });
+
+  // ===== 商品情報の補完 =====
+  completeSubmitBtn.addEventListener("click", async () => {
+    completeMsg.textContent = "";
+    completeMsg.className = "panelMsg";
+    if (!selectedSku) {
+      completeMsg.textContent = "先に表から商品を選択してください";
+      completeMsg.className = "panelMsg err";
+      return;
+    }
+    completeSubmitBtn.disabled = true;
+    completeSubmitBtn.textContent = "保存中...";
+    const { data, error } = await client.rpc("update_product_info", {
+      p_sku: selectedSku,
+      p_parent_code: completeParentCode.value.trim() || null,
+      p_product_name: completeProductName.value.trim() || null,
+      p_brand: completeBrand.value.trim() || null,
+      p_item_category: completeItemCategory.value.trim() || null
+    });
+    completeSubmitBtn.disabled = false;
+    completeSubmitBtn.textContent = "保存";
+    if (error) {
+      completeMsg.textContent = "エラー: " + error.message;
+      completeMsg.className = "panelMsg err";
+      return;
+    }
+    const p = allProducts.find(r => r.sku === selectedSku);
+    if (p) Object.assign(p, data);
+    renderTable(currentFilteredRows());
+    completeMsg.textContent = "保存しました";
+    completeMsg.className = "panelMsg ok";
+    if (p && !isIncomplete(p)) {
+      completeInfoBox.classList.add("hidden");
+    }
   });
 
   // ===== CSV一括反映 =====
