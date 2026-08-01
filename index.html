@@ -1841,6 +1841,7 @@
   let historyOffset = 0;
   let historyHasMore = true;
   let historyLoading = false;
+  let historyTotalCount = null;
 
   historyBtn.addEventListener("click", () => {
     moreMenuPanel.classList.add("hidden");
@@ -1864,7 +1865,7 @@
   }
 
   function buildHistoryQuery() {
-    let q = client.from("stock_history").select("*").order("created_at", { ascending: false });
+    let q = client.from("stock_history").select("*", { count: "exact" }).order("created_at", { ascending: false });
     const sku = historySkuInput.value.trim();
     if (sku) q = q.ilike("sku", `%${sku}%`);
     const loc = historyLocationSelect.value;
@@ -1891,7 +1892,7 @@
     historyLoadMoreBtn.textContent = "読み込み中...";
     if (reset) historySummary.textContent = "読み込み中...";
 
-    const { data, error } = await buildHistoryQuery().range(historyOffset, historyOffset + HISTORY_PAGE_SIZE - 1);
+    const { data, error, count } = await buildHistoryQuery().range(historyOffset, historyOffset + HISTORY_PAGE_SIZE - 1);
 
     historyLoading = false;
     historySearchBtn.disabled = false;
@@ -1902,6 +1903,7 @@
       return;
     }
 
+    if (typeof count === "number") historyTotalCount = count;
     historyRows = historyRows.concat(data);
     historyOffset += data.length;
     historyHasMore = data.length === HISTORY_PAGE_SIZE;
@@ -1913,7 +1915,8 @@
   }
 
   function renderHistoryTable() {
-    historySummary.textContent = `${historyRows.length}件を表示中${historyHasMore ? "（さらにあります。下の「もっと読み込む」で追加表示）" : ""}`;
+    const totalText = historyTotalCount !== null ? `（条件に合う全${historyTotalCount}件中）` : "";
+    historySummary.textContent = `${historyRows.length}件を表示中${totalText}${historyHasMore ? " ※下の「もっと読み込む」で追加表示できます" : ""}`;
     historyPreviewTable.classList.remove("hidden");
     historyPreviewBody.innerHTML = historyRows.map(r => {
       const p = allProducts.find(x => x.sku === r.sku);
