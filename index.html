@@ -95,7 +95,7 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
   }
   #sidePanel {
-    width: 300px;
+    width: 260px;
     flex-shrink: 0;
     position: sticky;
     top: 20px;
@@ -162,33 +162,53 @@
 
   table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
   }
+  col.col-parent { width: 100px; }
+  col.col-sku { width: 130px; }
+  col.col-name { width: auto; }
+  col.col-brand { width: 76px; }
+  col.col-category { width: 76px; }
+  col.col-stock { width: 64px; }
+
   thead th {
     background: #eef1f4;
     text-align: left;
-    padding: 10px 12px;
+    padding: 8px 10px;
+    height: 34px;
     font-size: 12px;
     color: #52606d;
     position: sticky;
-    top: 0;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  thead tr:first-child th { top: 0; }
+  thead tr:last-child th { top: 34px; }
+  thead th.stockGroupHeader {
+    text-align: center;
+    background: #e3ecff;
+    color: #33415c;
+    font-weight: 600;
+  }
+  thead th.col-stock {
+    text-align: right;
+    background: #f2f6ff;
   }
   tbody td {
-    padding: 8px 12px;
+    padding: 8px 10px;
     font-size: 13px;
     border-top: 1px solid #eef1f4;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 280px;
   }
-  td.col-brand, td.col-category { max-width: 90px; font-size: 12px; color: #52606d; }
-  th.col-brand, th.col-category { max-width: 90px; }
+  td.col-brand, td.col-category { font-size: 12px; color: #52606d; }
   tbody tr { cursor: pointer; }
   tbody tr:hover { background: #f8fafc; }
   tbody tr.selected { background: #eaf1ff; }
-  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; background: #f8faff; }
   .zero { color: #b0b7c3; }
   .unmatched { color: #cc3344; }
 
@@ -225,16 +245,29 @@
     <div id="layout" class="hidden">
       <div id="tableWrap">
         <table>
+          <colgroup>
+            <col class="col-parent">
+            <col class="col-sku">
+            <col class="col-name">
+            <col class="col-brand">
+            <col class="col-category">
+            <col class="col-stock">
+            <col class="col-stock">
+            <col class="col-stock">
+          </colgroup>
           <thead>
             <tr>
-              <th>品番</th>
-              <th>SKU</th>
-              <th>商品名</th>
-              <th class="col-brand">ブランド</th>
-              <th class="col-category">アイテム</th>
-              <th>ネット</th>
-              <th>オクテット</th>
-              <th>三好</th>
+              <th rowspan="2">品番</th>
+              <th rowspan="2">SKU</th>
+              <th rowspan="2">商品名</th>
+              <th rowspan="2" class="col-brand">ブランド</th>
+              <th rowspan="2" class="col-category">アイテム</th>
+              <th colspan="3" class="stockGroupHeader">在庫（拠点別）</th>
+            </tr>
+            <tr>
+              <th class="col-stock">ネット</th>
+              <th class="col-stock">オクテット</th>
+              <th class="col-stock">三好</th>
             </tr>
           </thead>
           <tbody id="tableBody"></tbody>
