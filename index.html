@@ -26,7 +26,7 @@
   }
   header h1 { font-size: 18px; margin: 0; }
   #headerActions { display: flex; gap: 10px; }
-  #csvBtn, #addSkuBtn, #matchBtn, #logoutBtn {
+  #csvBtn, #addSkuBtn, #matchBtn, #newProductBtn, #logoutBtn {
     background: transparent;
     border: 1px solid #cbd2d9;
     color: #fff;
@@ -41,6 +41,8 @@
   #addSkuBtn:hover { background: #278049; }
   #matchBtn { background: #8657d1; border-color: #8657d1; }
   #matchBtn:hover { background: #7143b8; }
+  #newProductBtn { background: #d9822f; border-color: #d9822f; }
+  #newProductBtn:hover { background: #b8691f; }
   #logoutBtn:hover { background: #323f4b; }
 
   /* その他メニュー（使用頻度の低い機能をまとめる） */
@@ -449,6 +451,7 @@
     <h1>在庫君 - 在庫照会</h1>
     <div id="headerActions">
       <button id="addSkuBtn">SKU追加</button>
+      <button id="newProductBtn">新商品登録</button>
       <button id="matchBtn">ccGoods突合</button>
       <button id="csvBtn">CSV一括反映</button>
       <div id="moreMenuWrap">
@@ -683,6 +686,41 @@
   </div>
 </div>
 
+<div id="newProductModalOverlay" class="modalOverlay hidden">
+  <div class="modalBox modalBoxWide">
+    <div class="modalHeader">
+      <h2>新商品登録（zaiko.csv取込）</h2>
+      <button id="newProductModalClose" class="modalClose">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="hint">
+        商品登録システムが出力する zaiko.csv（列: <code>SKUコード,在庫数量</code>、CP932、ヘッダーあり）をアップロードすると、
+        まだ在庫君に登録されていないSKUを新規追加します。数量はすべて本店（ネット）の初期在庫として登録されます。
+        品番・商品名・ブランド・アイテムはこのCSVには含まれていないため空欄のまま登録されます。登録後、「ccGoods突合」や「商品情報の補完」から埋めてください。
+        すでに登録済みのSKUはスキップされ、既存の在庫は変更されません。
+      </div>
+      <input type="file" id="newProductFileInput" accept=".csv" />
+      <div id="newProductSummary" style="font-size:13px; color:#33415c; margin-top:8px;"></div>
+      <div style="max-height: 45vh; overflow-y: auto; margin-top: 10px;">
+        <table id="newProductPreviewTable" class="previewTable hidden">
+          <thead>
+            <tr>
+              <th>SKUコード</th>
+              <th>初期在庫（ネット）</th>
+              <th>状態</th>
+            </tr>
+          </thead>
+          <tbody id="newProductPreviewBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modalFooter">
+      <div id="newProductProgress" style="font-size:12px; color:#616e7c; margin-right:auto; white-space:pre-line;"></div>
+      <button id="newProductApplyBtn" class="modalPrimaryBtn" disabled>この内容を登録</button>
+    </div>
+  </div>
+</div>
+
 <div id="bulkDeleteModalOverlay" class="modalOverlay hidden">
   <div class="modalBox modalBoxWide">
     <div class="modalHeader">
@@ -795,6 +833,16 @@
   const matchPreviewBody = document.getElementById("matchPreviewBody");
   const matchApplyBtn = document.getElementById("matchApplyBtn");
   const matchProgress = document.getElementById("matchProgress");
+
+  const newProductBtn = document.getElementById("newProductBtn");
+  const newProductModalOverlay = document.getElementById("newProductModalOverlay");
+  const newProductModalClose = document.getElementById("newProductModalClose");
+  const newProductFileInput = document.getElementById("newProductFileInput");
+  const newProductSummary = document.getElementById("newProductSummary");
+  const newProductPreviewTable = document.getElementById("newProductPreviewTable");
+  const newProductPreviewBody = document.getElementById("newProductPreviewBody");
+  const newProductApplyBtn = document.getElementById("newProductApplyBtn");
+  const newProductProgress = document.getElementById("newProductProgress");
 
   let allProducts = [];
   let selectedSku = null;
@@ -1362,6 +1410,142 @@
     } else {
       matchProgress.textContent = `完了: 成功 ${done}件 / 失敗 ${failed}件`;
       renderMatchPreview();
+    }
+  });
+
+  // ===== 新商品登録（zaiko.csv取込） =====
+  let newProductPlan = []; // [{sku, stockNet, status: "new" | "duplicate" | "invalid"}]
+
+  newProductBtn.addEventListener("click", () => {
+    newProductModalOverlay.classList.remove("hidden");
+    resetNewProductModal();
+  });
+  newProductModalClose.addEventListener("click", () => {
+    newProductModalOverlay.classList.add("hidden");
+  });
+
+  function resetNewProductModal() {
+    newProductFileInput.value = "";
+    newProductFileInput.disabled = false;
+    newProductSummary.textContent = "";
+    newProductPreviewTable.classList.add("hidden");
+    newProductPreviewBody.innerHTML = "";
+    newProductApplyBtn.disabled = true;
+    newProductProgress.textContent = "";
+    newProductPlan = [];
+  }
+
+  newProductFileInput.addEventListener("change", async () => {
+    const file = newProductFileInput.files[0];
+    if (!file) return;
+    newProductSummary.textContent = "解析中...";
+    newProductPreviewTable.classList.add("hidden");
+    newProductApplyBtn.disabled = true;
+
+    let text;
+    try {
+      const buffer = await file.arrayBuffer();
+      text = new TextDecoder("shift_jis").decode(buffer); // zaiko.csvはCP932
+    } catch (e) {
+      newProductSummary.textContent = "ファイルの読み込みに失敗しました: " + e.message;
+      return;
+    }
+
+    const rows = parseCsvText(text);
+    if (rows.length < 2) {
+      newProductSummary.textContent = "データ行が見つかりませんでした。";
+      return;
+    }
+
+    // 列名ベースで参照する
+    const header = rows[0].map(cleanText);
+    const skuIdx = header.findIndex(h => h === "SKUコード");
+    const qtyIdx = header.findIndex(h => h === "在庫数量");
+
+    if (skuIdx === -1 || qtyIdx === -1) {
+      newProductSummary.textContent = "ヘッダー行に「SKUコード」または「在庫数量」の列が見つかりません。ファイル形式を確認してください。";
+      return;
+    }
+
+    const existingSkuSet = new Set(allProducts.map(p => p.sku));
+    const seenInFile = new Set();
+    const plan = [];
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      const sku = cleanText(r[skuIdx]);
+      if (!sku) continue;
+      const qtyRaw = cleanText(r[qtyIdx]);
+      const qty = qtyRaw === "" ? 0 : parseInt(qtyRaw, 10);
+
+      let status = "new";
+      if (existingSkuSet.has(sku)) {
+        status = "duplicate"; // 既に在庫君に登録済み
+      } else if (seenInFile.has(sku)) {
+        status = "duplicate"; // ファイル内で重複
+      } else if (isNaN(qty)) {
+        status = "invalid"; // 数量が数値でない
+      }
+      seenInFile.add(sku);
+
+      plan.push({ sku, stockNet: isNaN(qty) ? 0 : qty, status });
+    }
+
+    newProductPlan = plan;
+    renderNewProductPreview();
+  });
+
+  function renderNewProductPreview() {
+    const newCount = newProductPlan.filter(p => p.status === "new").length;
+    const dupCount = newProductPlan.filter(p => p.status === "duplicate").length;
+    const invalidCount = newProductPlan.filter(p => p.status === "invalid").length;
+    newProductSummary.textContent = `${newProductPlan.length}件中、新規登録: ${newCount}件（既存SKUでスキップ: ${dupCount}件、数量が不正でスキップ: ${invalidCount}件）`;
+    newProductPreviewTable.classList.remove("hidden");
+    newProductPreviewBody.innerHTML = newProductPlan.map(p => `
+      <tr class="${p.status === "new" ? "rowOk" : "rowError"}">
+        <td>${escapeHtml(p.sku)}</td>
+        <td>${p.stockNet}</td>
+        <td>${p.status === "new" ? "新規登録" : (p.status === "duplicate" ? "スキップ（既存SKU）" : "スキップ（数量不正）")}</td>
+      </tr>
+    `).join("");
+    newProductApplyBtn.disabled = newCount === 0;
+  }
+
+  newProductApplyBtn.addEventListener("click", async () => {
+    const targets = newProductPlan.filter(p => p.status === "new");
+    if (targets.length === 0) return;
+    newProductApplyBtn.disabled = true;
+    newProductFileInput.disabled = true;
+    let done = 0, failed = 0;
+    for (const p of targets) {
+      newProductProgress.textContent = `登録中... ${done + failed + 1} / ${targets.length}`;
+      const { data, error } = await client.rpc("add_product", {
+        p_sku: p.sku,
+        p_parent_code: null,
+        p_product_name: null,
+        p_brand: null,
+        p_item_category: null,
+        p_stock_net: p.stockNet,
+        p_stock_octet: 0,
+        p_stock_miyoshi: 0
+      });
+      if (error) {
+        failed++;
+        p.status = "invalid";
+      } else {
+        done++;
+        allProducts.push(data);
+      }
+    }
+    allProducts.sort((a, b) => (a.sku || "").localeCompare(b.sku || ""));
+    newProductFileInput.disabled = false;
+    renderTable(currentFilteredRows());
+
+    if (failed === 0) {
+      newProductModalOverlay.classList.add("hidden");
+      resetNewProductModal();
+    } else {
+      newProductProgress.textContent = `完了: 成功 ${done}件 / 失敗 ${failed}件`;
+      renderNewProductPreview();
     }
   });
 
