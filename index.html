@@ -611,7 +611,7 @@
       <div class="hint">
         フューチャーショップの商品マスタCSV（ccGoods_*.csv、CP932、列に「商品番号」「商品名」を含むもの）をアップロードすると、
         品番が未マッチのSKUに対して、SKUをハイフン区切りで後ろから照合し、一致する商品番号があれば品番・商品名を自動で提案します。
-        ブランドは、ブランドが未入力の行に限り、メイングループ列の「ブランド別/…」からわかる範囲で提案します（アイテムは対象外。取り込み後、必要なら「商品情報の補完」から入力してください）。
+        ブランド・アイテムはccGoods側の表記が既存のルールと食い違うことがあるため対象外です（変更されません）。必要なら「商品情報の補完」から手入力してください。
         内容を確認してから反映するので、このアップロードだけでは何も変更されません。
       </div>
       <input type="file" id="matchFileInput" accept=".csv" />
@@ -623,7 +623,7 @@
               <th>SKU</th>
               <th>マッチした品番</th>
               <th>商品名（反映後）</th>
-              <th>ブランド（反映後）</th>
+              <th>ブランド</th>
               <th>状態</th>
             </tr>
           </thead>
@@ -1179,7 +1179,6 @@
     const header = rows[0].map(cleanText);
     const codeIdx = header.findIndex(h => h === "商品番号");
     const nameIdx = header.findIndex(h => h === "商品名");
-    const groupIdx = header.findIndex(h => h === "メイングループ");
 
     if (codeIdx === -1 || nameIdx === -1) {
       matchSummary.textContent = "ヘッダー行に「商品番号」または「商品名」の列が見つかりません。ファイル形式を確認してください。";
@@ -1187,7 +1186,7 @@
     }
 
     // マスタを構築。商品番号が空欄の行は除外、重複はマスタ重複チェックとして先勝ちで処理する
-    const masterMap = new Map(); // code -> { name, brand }
+    const masterMap = new Map(); // code -> { name }
     let dupCount = 0;
     let blankCount = 0;
     for (let i = 1; i < rows.length; i++) {
@@ -1196,30 +1195,23 @@
       if (!code) { blankCount++; continue; }
       if (masterMap.has(code)) { dupCount++; continue; }
       const name = cleanText(r[nameIdx]);
-      let brand = null;
-      if (groupIdx !== -1) {
-        const group = cleanText(r[groupIdx]);
-        if (group.indexOf("ブランド別/") === 0) {
-          const segs = group.split("/");
-          brand = segs[segs.length - 1] || null;
-        }
-      }
-      masterMap.set(code, { name, brand });
+      masterMap.set(code, { name });
     }
 
+    // ブランド・アイテムはccGoods側の表記が既存の表記ルールと食い違うことがあるため対象外。
+    // 品番・商品名だけを反映し、ブランド・アイテムは既存値のまま変更しない。
     const targets = allProducts.filter(isUnmatched);
     const plan = targets.map(p => {
       const parent = findParentInMaster(p.sku, masterMap);
       if (!parent) {
-        return { sku: p.sku, parent: null, name: null, brand: null, currentItemCategory: p.item_category || null, valid: false };
+        return { sku: p.sku, parent: null, name: null, currentBrand: p.brand || null, currentItemCategory: p.item_category || null, valid: false };
       }
       const m = masterMap.get(parent);
-      const brand = p.brand ? p.brand : (m.brand || null); // 既にブランドがある行は上書きしない
       return {
         sku: p.sku,
         parent,
         name: m.name || null,
-        brand,
+        currentBrand: p.brand || null,
         currentItemCategory: p.item_category || null,
         valid: true
       };
@@ -1245,7 +1237,7 @@
         <td>${escapeHtml(p.sku)}</td>
         <td>${p.valid ? escapeHtml(p.parent) : "-"}</td>
         <td>${p.valid ? escapeHtml(p.name || "") : "-"}</td>
-        <td>${p.valid ? escapeHtml(p.brand || "") : "-"}</td>
+        <td>${escapeHtml(p.currentBrand || "")}（変更なし）</td>
         <td>${p.valid ? "OK" : "一致なし"}</td>
       </tr>
     `).join("");
@@ -1264,7 +1256,7 @@
         p_sku: p.sku,
         p_parent_code: p.parent,
         p_product_name: p.name,
-        p_brand: p.brand,
+        p_brand: p.currentBrand,
         p_item_category: p.currentItemCategory
       });
       if (error) {
