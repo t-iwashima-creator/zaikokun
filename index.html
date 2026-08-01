@@ -80,13 +80,89 @@
   }
   #rowCount { color: #616e7c; font-size: 13px; }
 
+  /* two-column layout: table + side panel */
+  #layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+  }
+  #tableWrap {
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  #sidePanel {
+    width: 300px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .panelBox {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    padding: 16px;
+  }
+  .panelBox h3 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    color: #1f2933;
+    border-bottom: 1px solid #eef1f4;
+    padding-bottom: 8px;
+  }
+  #selectedSkuBox {
+    background: #f5f8ff;
+    border: 1px solid #d3e0fc;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+    margin-bottom: 12px;
+    color: #33415c;
+    line-height: 1.5;
+  }
+  #selectedSkuBox.empty { color: #9aa5b1; }
+  .panelBox label {
+    display: block;
+    font-size: 12px;
+    color: #616e7c;
+    margin-bottom: 4px;
+    margin-top: 10px;
+  }
+  .panelBox label:first-of-type { margin-top: 0; }
+  .panelBox select,
+  .panelBox input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #cbd2d9;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .panelBox button {
+    width: 100%;
+    margin-top: 14px;
+    padding: 10px;
+    background: #1f6feb;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .panelBox button:hover { background: #1a5fc7; }
+  .panelBox button:disabled { background: #9aa5b1; cursor: not-allowed; }
+  .panelMsg { font-size: 12px; margin-top: 8px; min-height: 16px; }
+  .panelMsg.ok { color: #1a7f37; }
+  .panelMsg.err { color: #cc3344; }
+
   table {
     width: 100%;
     border-collapse: collapse;
-    background: #fff;
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
   }
   thead th {
     background: #eef1f4;
@@ -96,6 +172,7 @@
     color: #52606d;
     position: sticky;
     top: 0;
+    white-space: nowrap;
   }
   tbody td {
     padding: 8px 12px;
@@ -104,9 +181,13 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 320px;
+    max-width: 280px;
   }
+  td.col-brand, td.col-category { max-width: 90px; font-size: 12px; color: #52606d; }
+  th.col-brand, th.col-category { max-width: 90px; }
+  tbody tr { cursor: pointer; }
   tbody tr:hover { background: #f8fafc; }
+  tbody tr.selected { background: #eaf1ff; }
   .num { text-align: right; font-variant-numeric: tabular-nums; }
   .zero { color: #b0b7c3; }
   .unmatched { color: #cc3344; }
@@ -140,32 +221,83 @@
     </div>
     <div id="loadingMsg">読み込み中...</div>
     <div id="errorMsg" class="hidden"></div>
-    <table id="productsTable" class="hidden">
-      <thead>
-        <tr>
-          <th>品番</th>
-          <th>SKU</th>
-          <th>商品名</th>
-          <th>ブランド</th>
-          <th>アイテム</th>
-          <th>ネット</th>
-          <th>オクテット</th>
-          <th>三好</th>
-        </tr>
-      </thead>
-      <tbody id="tableBody"></tbody>
-    </table>
+
+    <div id="layout" class="hidden">
+      <div id="tableWrap">
+        <table>
+          <thead>
+            <tr>
+              <th>品番</th>
+              <th>SKU</th>
+              <th>商品名</th>
+              <th class="col-brand">ブランド</th>
+              <th class="col-category">アイテム</th>
+              <th>ネット</th>
+              <th>オクテット</th>
+              <th>三好</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+
+      <div id="sidePanel">
+        <div class="panelBox">
+          <h3>選択中の商品</h3>
+          <div id="selectedSkuBox" class="empty">表の行をクリックすると選択されます</div>
+        </div>
+
+        <div class="panelBox">
+          <h3>在庫増減</h3>
+          <label>拠点</label>
+          <select id="adjLocation">
+            <option value="net">ネット</option>
+            <option value="octet">オクテット</option>
+            <option value="miyoshi">三好</option>
+          </select>
+          <label>増減数（例: -1 / +3）</label>
+          <input type="number" id="adjAmount" step="1" placeholder="-1" />
+          <label>理由</label>
+          <input type="text" id="adjReason" placeholder="例: 店舗販売" />
+          <button id="adjSubmitBtn">在庫を反映</button>
+          <div id="adjMsg" class="panelMsg"></div>
+        </div>
+
+        <div class="panelBox">
+          <h3>店舗間移動</h3>
+          <label>移動元</label>
+          <select id="transFrom">
+            <option value="net">ネット</option>
+            <option value="octet">オクテット</option>
+            <option value="miyoshi">三好</option>
+          </select>
+          <label>移動先</label>
+          <select id="transTo">
+            <option value="octet">オクテット</option>
+            <option value="net">ネット</option>
+            <option value="miyoshi">三好</option>
+          </select>
+          <label>数量（正の数）</label>
+          <input type="number" id="transAmount" min="1" step="1" placeholder="1" />
+          <label>理由</label>
+          <input type="text" id="transReason" placeholder="例: 商品移動" />
+          <button id="transSubmitBtn">移動を反映</button>
+          <div id="transMsg" class="panelMsg"></div>
+        </div>
+      </div>
+    </div>
   </main>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
-  // ▼▼▼ ここをSupabaseプロジェクトの値に置き換えてください ▼▼▼
+  // ▼▼▼ Supabaseプロジェクトの値 ▼▼▼
   const SUPABASE_URL = "https://fyzgtfdcehwtuhzkgbbq.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_3nMdUCv75vhhsn3ZNpesRw_AKxJSzz3";
   // ▲▲▲ ここまで ▲▲▲
 
   const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const LOCATION_LABEL = { net: "ネット", octet: "オクテット", miyoshi: "三好" };
 
   const loginScreen = document.getElementById("loginScreen");
   const appScreen = document.getElementById("appScreen");
@@ -176,12 +308,27 @@
   const loginError = document.getElementById("loginError");
   const searchInput = document.getElementById("searchInput");
   const tableBody = document.getElementById("tableBody");
-  const productsTable = document.getElementById("productsTable");
+  const layout = document.getElementById("layout");
   const loadingMsg = document.getElementById("loadingMsg");
   const errorMsg = document.getElementById("errorMsg");
   const rowCount = document.getElementById("rowCount");
+  const selectedSkuBox = document.getElementById("selectedSkuBox");
+
+  const adjLocation = document.getElementById("adjLocation");
+  const adjAmount = document.getElementById("adjAmount");
+  const adjReason = document.getElementById("adjReason");
+  const adjSubmitBtn = document.getElementById("adjSubmitBtn");
+  const adjMsg = document.getElementById("adjMsg");
+
+  const transFrom = document.getElementById("transFrom");
+  const transTo = document.getElementById("transTo");
+  const transAmount = document.getElementById("transAmount");
+  const transReason = document.getElementById("transReason");
+  const transSubmitBtn = document.getElementById("transSubmitBtn");
+  const transMsg = document.getElementById("transMsg");
 
   let allProducts = [];
+  let selectedSku = null;
 
   async function checkSession() {
     const { data: { session } } = await client.auth.getSession();
@@ -217,7 +364,7 @@
     loginBtn.disabled = false;
     loginBtn.textContent = "ログイン";
     if (error) {
-      loginError.textContent = "ログインに失敗しました（メールアドレスかパスワードが違います）";
+      loginError.textContent = "ログインに失敗しました(メールアドレスかパスワードが違います)";
       return;
     }
     showApp();
@@ -235,7 +382,7 @@
   async function loadProducts() {
     loadingMsg.classList.remove("hidden");
     errorMsg.classList.add("hidden");
-    productsTable.classList.add("hidden");
+    layout.classList.add("hidden");
 
     let all = [];
     let from = 0;
@@ -259,7 +406,7 @@
 
     allProducts = all;
     loadingMsg.classList.add("hidden");
-    productsTable.classList.remove("hidden");
+    layout.classList.remove("hidden");
     renderTable(allProducts);
   }
 
@@ -269,7 +416,7 @@
       return `<td class="num${n === 0 ? " zero" : ""}">${n}</td>`;
     }
     const text = v ? escapeHtml(v) : "";
-    return `<td>${text}</td>`;
+    return `<td title="${text}">${text}</td>`;
   }
 
   function escapeHtml(s) {
@@ -281,33 +428,150 @@
 
   function renderTable(rows) {
     tableBody.innerHTML = rows.map(r => `
-      <tr>
+      <tr data-sku="${escapeHtml(r.sku)}" class="${r.sku === selectedSku ? "selected" : ""}">
         <td class="${r.parent_code ? "" : "unmatched"}">${r.parent_code ? escapeHtml(r.parent_code) : "(未マッチ)"}</td>
         <td>${escapeHtml(r.sku)}</td>
         ${cell(r.product_name)}
-        ${cell(r.brand)}
-        ${cell(r.item_category)}
+        <td class="col-brand" title="${escapeHtml(r.brand || "")}">${escapeHtml(r.brand || "")}</td>
+        <td class="col-category" title="${escapeHtml(r.item_category || "")}">${escapeHtml(r.item_category || "")}</td>
         ${cell(r.stock_net, true)}
         ${cell(r.stock_octet, true)}
         ${cell(r.stock_miyoshi, true)}
       </tr>
     `).join("");
     rowCount.textContent = `${rows.length}件`;
+
+    tableBody.querySelectorAll("tr").forEach(tr => {
+      tr.addEventListener("click", () => selectSku(tr.dataset.sku));
+    });
   }
 
-  searchInput.addEventListener("input", () => {
-    const q = searchInput.value.trim().toLowerCase();
-    if (!q) {
-      renderTable(allProducts);
-      return;
+  function selectSku(sku) {
+    selectedSku = sku;
+    const p = allProducts.find(r => r.sku === sku);
+    if (p) {
+      selectedSkuBox.classList.remove("empty");
+      selectedSkuBox.innerHTML = `
+        <strong>${escapeHtml(sku)}</strong><br>
+        ${escapeHtml(p.product_name || "(商品名未設定)")}<br>
+        ネット:${p.stock_net} / オクテット:${p.stock_octet} / 三好:${p.stock_miyoshi}
+      `;
     }
-    const filtered = allProducts.filter(r =>
+    document.querySelectorAll("#tableBody tr").forEach(tr => {
+      tr.classList.toggle("selected", tr.dataset.sku === sku);
+    });
+    adjMsg.textContent = "";
+    transMsg.textContent = "";
+  }
+
+  function updateLocalStock(sku, updates) {
+    const p = allProducts.find(r => r.sku === sku);
+    if (p) Object.assign(p, updates);
+    renderTable(currentFilteredRows());
+    if (selectedSku === sku) selectSku(sku);
+  }
+
+  function currentFilteredRows() {
+    const q = searchInput.value.trim().toLowerCase();
+    if (!q) return allProducts;
+    return allProducts.filter(r =>
       (r.sku || "").toLowerCase().includes(q) ||
       (r.parent_code || "").toLowerCase().includes(q) ||
       (r.product_name || "").toLowerCase().includes(q) ||
       (r.brand || "").toLowerCase().includes(q)
     );
-    renderTable(filtered);
+  }
+
+  searchInput.addEventListener("input", () => {
+    renderTable(currentFilteredRows());
+  });
+
+  adjSubmitBtn.addEventListener("click", async () => {
+    adjMsg.textContent = "";
+    adjMsg.className = "panelMsg";
+    if (!selectedSku) {
+      adjMsg.textContent = "先に表から商品を選択してください";
+      adjMsg.className = "panelMsg err";
+      return;
+    }
+    const amount = parseInt(adjAmount.value, 10);
+    if (!amount) {
+      adjMsg.textContent = "増減数を入力してください(0は不可)";
+      adjMsg.className = "panelMsg err";
+      return;
+    }
+    adjSubmitBtn.disabled = true;
+    adjSubmitBtn.textContent = "反映中...";
+    const { data, error } = await client.rpc("apply_stock_change", {
+      p_sku: selectedSku,
+      p_location: adjLocation.value,
+      p_change_amount: amount,
+      p_reason: adjReason.value || null,
+      p_source_file: "manual_ui"
+    });
+    adjSubmitBtn.disabled = false;
+    adjSubmitBtn.textContent = "在庫を反映";
+    if (error) {
+      adjMsg.textContent = "エラー: " + error.message;
+      adjMsg.className = "panelMsg err";
+      return;
+    }
+    updateLocalStock(selectedSku, {
+      stock_net: data.stock_net,
+      stock_octet: data.stock_octet,
+      stock_miyoshi: data.stock_miyoshi
+    });
+    adjMsg.textContent = "反映しました";
+    adjMsg.className = "panelMsg ok";
+    adjAmount.value = "";
+    adjReason.value = "";
+  });
+
+  transSubmitBtn.addEventListener("click", async () => {
+    transMsg.textContent = "";
+    transMsg.className = "panelMsg";
+    if (!selectedSku) {
+      transMsg.textContent = "先に表から商品を選択してください";
+      transMsg.className = "panelMsg err";
+      return;
+    }
+    if (transFrom.value === transTo.value) {
+      transMsg.textContent = "移動元と移動先は別の拠点にしてください";
+      transMsg.className = "panelMsg err";
+      return;
+    }
+    const amount = parseInt(transAmount.value, 10);
+    if (!amount || amount <= 0) {
+      transMsg.textContent = "移動数量(正の数)を入力してください";
+      transMsg.className = "panelMsg err";
+      return;
+    }
+    transSubmitBtn.disabled = true;
+    transSubmitBtn.textContent = "反映中...";
+    const { data, error } = await client.rpc("transfer_stock", {
+      p_sku: selectedSku,
+      p_from_location: transFrom.value,
+      p_to_location: transTo.value,
+      p_amount: amount,
+      p_reason: transReason.value || null,
+      p_source_file: "manual_ui"
+    });
+    transSubmitBtn.disabled = false;
+    transSubmitBtn.textContent = "移動を反映";
+    if (error) {
+      transMsg.textContent = "エラー: " + error.message;
+      transMsg.className = "panelMsg err";
+      return;
+    }
+    updateLocalStock(selectedSku, {
+      stock_net: data.stock_net,
+      stock_octet: data.stock_octet,
+      stock_miyoshi: data.stock_miyoshi
+    });
+    transMsg.textContent = "反映しました";
+    transMsg.className = "panelMsg ok";
+    transAmount.value = "";
+    transReason.value = "";
   });
 
   checkSession();
