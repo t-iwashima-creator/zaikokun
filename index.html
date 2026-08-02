@@ -394,6 +394,14 @@
     border: 1px solid #cc3344;
   }
   .panelBox button.dangerBtn:hover:not(:disabled) { background: #fff5f5; }
+  .panelBox button.secondaryBtn {
+    background: #fff;
+    color: #1f6feb;
+    border: 1px solid #1f6feb;
+  }
+  .panelBox button.secondaryBtn:hover:not(:disabled) { background: #f5f8ff; }
+  .buttonRow { display: flex; gap: 8px; }
+  .buttonRow button.panelBox, .buttonRow > button { width: auto; flex: 1; margin-top: 10px; }
   .panelMsg { font-size: 12px; margin-top: 8px; min-height: 16px; }
   .panelMsg.ok { color: #1a7f37; }
   .panelMsg.err { color: #cc3344; }
@@ -535,12 +543,15 @@
         <div class="panelBox">
           <h3>選択中の商品</h3>
           <div id="selectedSkuBox" class="empty">表の行をクリックすると選択されます</div>
-          <button id="deleteSkuBtn" class="dangerBtn" disabled>このSKUを削除</button>
+          <div class="buttonRow">
+            <button id="editProductBtn" class="secondaryBtn" disabled>修正</button>
+            <button id="deleteSkuBtn" class="dangerBtn" disabled>削除</button>
+          </div>
           <div id="deleteMsg" class="panelMsg"></div>
         </div>
 
         <div class="panelBox hidden" id="completeInfoBox">
-          <h3>商品情報の補完</h3>
+          <h3>商品情報の修正</h3>
           <label>品番</label>
           <input type="text" id="completeParentCode" placeholder="品番" />
           <label>商品名</label>
@@ -682,7 +693,7 @@
       <div class="hint">
         フューチャーショップの商品マスタCSV（ccGoods_*.csv、CP932、列に「商品番号」「商品名」を含むもの）をアップロードすると、
         品番が未マッチのSKUに対して、SKUをハイフン区切りで後ろから照合し、一致する商品番号があれば品番・商品名を自動で提案します。
-        ブランド・アイテムはccGoods側の表記が既存のルールと食い違うことがあるため対象外です（変更されません）。必要なら「商品情報の補完」から手入力してください。
+        ブランド・アイテムはccGoods側の表記が既存のルールと食い違うことがあるため対象外です（変更されません）。必要なら「修正」ボタンから手入力してください。
         内容を確認してから反映するので、このアップロードだけでは何も変更されません。
       </div>
       <input type="file" id="matchFileInput" accept=".csv" />
@@ -773,7 +784,7 @@
       <div class="hint">
         商品登録システムが出力する zaiko.csv（列: <code>SKUコード,在庫数量</code>、CP932、ヘッダーあり）をアップロードすると、
         まだ在庫君に登録されていないSKUを新規追加します。数量はすべて本店（ネット）の初期在庫として登録されます。
-        品番・商品名・ブランド・アイテムはこのCSVには含まれていないため空欄のまま登録されます。登録後、「ccGoods突合」や「商品情報の補完」から埋めてください。
+        品番・商品名・ブランド・アイテムはこのCSVには含まれていないため空欄のまま登録されます。登録後、「ccGoods突合」や「修正」ボタンから埋めてください。
         すでに登録済みのSKUはスキップされ、既存の在庫は変更されません。
       </div>
       <input type="file" id="newProductFileInput" accept=".csv" />
@@ -876,6 +887,7 @@
   const transSubmitBtn = document.getElementById("transSubmitBtn");
   const transMsg = document.getElementById("transMsg");
 
+  const editProductBtn = document.getElementById("editProductBtn");
   const deleteSkuBtn = document.getElementById("deleteSkuBtn");
   const deleteMsg = document.getElementById("deleteMsg");
 
@@ -1074,16 +1086,15 @@
       const allZero = (p.stock_net || 0) === 0 && (p.stock_octet || 0) === 0 && (p.stock_miyoshi || 0) === 0;
       deleteSkuBtn.disabled = !allZero;
       deleteSkuBtn.title = allZero ? "" : "在庫が0でないため削除できません";
+      editProductBtn.disabled = false;
 
-      if (isIncomplete(p)) {
-        completeInfoBox.classList.remove("hidden");
-        completeParentCode.value = p.parent_code || "";
-        completeProductName.value = p.product_name || "";
-        completeBrand.value = p.brand || "";
-        completeItemCategory.value = p.item_category || "";
-      } else {
-        completeInfoBox.classList.add("hidden");
-      }
+      // 品番・商品名・ブランド・アイテムは、既に入力済みでも「修正」ボタンから
+      // いつでも直せるように、選択のたびに現在値を編集欄へ反映しておく
+      completeParentCode.value = p.parent_code || "";
+      completeProductName.value = p.product_name || "";
+      completeBrand.value = p.brand || "";
+      completeItemCategory.value = p.item_category || "";
+      completeInfoBox.classList.add("hidden");
     }
     document.querySelectorAll("#tableBody tr").forEach(tr => {
       tr.classList.toggle("selected", tr.dataset.sku === sku);
@@ -1094,12 +1105,18 @@
     completeMsg.textContent = "";
   }
 
+  editProductBtn.addEventListener("click", () => {
+    if (!selectedSku) return;
+    completeInfoBox.classList.toggle("hidden");
+  });
+
   function clearSelection() {
     selectedSku = null;
     selectedSkuBox.classList.add("empty");
     selectedSkuBox.textContent = "表の行をクリックすると選択されます";
     deleteSkuBtn.disabled = true;
     deleteSkuBtn.title = "";
+    editProductBtn.disabled = true;
     completeInfoBox.classList.add("hidden");
   }
 
@@ -1304,7 +1321,7 @@
     renderTable(currentFilteredRows());
   });
 
-  // ===== 商品情報の補完 =====
+  // ===== 商品情報の修正 =====
   completeSubmitBtn.addEventListener("click", async () => {
     completeMsg.textContent = "";
     completeMsg.className = "panelMsg";
@@ -1332,11 +1349,10 @@
     const p = allProducts.find(r => r.sku === selectedSku);
     if (p) Object.assign(p, data);
     renderTable(currentFilteredRows());
+    if (selectedSku) selectSku(selectedSku); // 選択中の商品ボックスの表示も更新する
     completeMsg.textContent = "保存しました";
     completeMsg.className = "panelMsg ok";
-    if (p && !isIncomplete(p)) {
-      completeInfoBox.classList.add("hidden");
-    }
+    completeInfoBox.classList.add("hidden");
   });
 
   // ===== ccGoods突合 =====
