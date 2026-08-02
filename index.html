@@ -26,7 +26,7 @@
   }
   header h1 { font-size: 18px; margin: 0; }
   #headerActions { display: flex; gap: 10px; }
-  #csvBtn, #addSkuBtn, #matchBtn, #newProductBtn, #logoutBtn {
+  #csvBtn, #addSkuBtn, #matchBtn, #newProductBtn, #ecBtn, #logoutBtn {
     background: transparent;
     border: 1px solid #cbd2d9;
     color: #fff;
@@ -43,6 +43,8 @@
   #matchBtn:hover { background: #7143b8; }
   #newProductBtn { background: #d9822f; border-color: #d9822f; }
   #newProductBtn:hover { background: #b8691f; }
+  #ecBtn { background: #c0395f; border-color: #c0395f; }
+  #ecBtn:hover { background: #a12e4f; }
   #logoutBtn:hover { background: #323f4b; }
   .historyFilterRow { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
   .historyFilterRow .field { display: flex; flex-direction: column; gap: 3px; }
@@ -484,6 +486,7 @@
       <button id="newProductBtn">新商品登録</button>
       <button id="matchBtn">ccGoods突合</button>
       <button id="csvBtn">CSV一括反映</button>
+      <button id="ecBtn">EC引当</button>
       <div id="moreMenuWrap">
         <button id="moreMenuBtn" title="その他">⋯</button>
         <div id="moreMenuPanel" class="hidden">
@@ -564,7 +567,7 @@
           <div id="completeMsg" class="panelMsg"></div>
         </div>
 
-        <div class="panelBox">
+        <div class="panelBox" id="stockAdjBox">
           <h3>在庫増減</h3>
           <label>拠点</label>
           <select id="adjLocation">
@@ -580,7 +583,7 @@
           <div id="adjMsg" class="panelMsg"></div>
         </div>
 
-        <div class="panelBox">
+        <div class="panelBox" id="transferBox">
           <h3>店舗間移動</h3>
           <label>移動元</label>
           <select id="transFrom">
@@ -809,6 +812,45 @@
   </div>
 </div>
 
+<div id="ecModalOverlay" class="modalOverlay hidden">
+  <div class="modalBox modalBoxWide">
+    <div class="modalHeader">
+      <h2>EC引当（オンライン注文の在庫引当）</h2>
+      <button id="ecModalClose" class="modalClose">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="hint">
+        売れメールPDFを「売れメールPDF_CSV変換.py」でCSV化し、そのCSV（列: <code>SKU</code>、1行=1個）をアップロードしてください。
+        本店（ネット）→三好→オクテットの優先順で在庫を引き当てます。1つの拠点で足りない場合は、次の優先拠点から自動で分けて引き当てます。
+        全拠点合わせても足りない分はマイナスにはせず「欠品」として表示するだけで、在庫は変更されません。
+        内容を確認してから反映するので、このアップロードだけでは何も変更されません。
+      </div>
+      <input type="file" id="ecFileInput" accept=".csv" />
+      <div id="ecSummary" style="font-size:13px; color:#33415c; margin-top:8px;"></div>
+      <div style="max-height: 45vh; overflow-y: auto; margin-top: 10px;">
+        <table id="ecPreviewTable" class="previewTable hidden">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>商品名</th>
+              <th>必要数</th>
+              <th>本店</th>
+              <th>三好</th>
+              <th>オクテット</th>
+              <th>状態</th>
+            </tr>
+          </thead>
+          <tbody id="ecPreviewBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modalFooter">
+      <div id="ecProgress" style="font-size:12px; color:#616e7c; margin-right:auto; white-space:pre-line;"></div>
+      <button id="ecApplyBtn" class="modalPrimaryBtn" disabled>この内容を反映</button>
+    </div>
+  </div>
+</div>
+
 <div id="bulkDeleteModalOverlay" class="modalOverlay hidden">
   <div class="modalBox modalBoxWide">
     <div class="modalHeader">
@@ -879,6 +921,7 @@
   const adjReason = document.getElementById("adjReason");
   const adjSubmitBtn = document.getElementById("adjSubmitBtn");
   const adjMsg = document.getElementById("adjMsg");
+  const stockAdjBox = document.getElementById("stockAdjBox");
 
   const transFrom = document.getElementById("transFrom");
   const transTo = document.getElementById("transTo");
@@ -886,6 +929,7 @@
   const transReason = document.getElementById("transReason");
   const transSubmitBtn = document.getElementById("transSubmitBtn");
   const transMsg = document.getElementById("transMsg");
+  const transferBox = document.getElementById("transferBox");
 
   const editProductBtn = document.getElementById("editProductBtn");
   const deleteSkuBtn = document.getElementById("deleteSkuBtn");
@@ -933,6 +977,16 @@
   const newProductApplyBtn = document.getElementById("newProductApplyBtn");
   const newProductProgress = document.getElementById("newProductProgress");
 
+  const ecBtn = document.getElementById("ecBtn");
+  const ecModalOverlay = document.getElementById("ecModalOverlay");
+  const ecModalClose = document.getElementById("ecModalClose");
+  const ecFileInput = document.getElementById("ecFileInput");
+  const ecSummary = document.getElementById("ecSummary");
+  const ecPreviewTable = document.getElementById("ecPreviewTable");
+  const ecPreviewBody = document.getElementById("ecPreviewBody");
+  const ecApplyBtn = document.getElementById("ecApplyBtn");
+  const ecProgress = document.getElementById("ecProgress");
+
   const historyModalOverlay = document.getElementById("historyModalOverlay");
   const historyModalClose = document.getElementById("historyModalClose");
   const historySkuInput = document.getElementById("historySkuInput");
@@ -956,6 +1010,22 @@
     return !p.parent_code;
   }
 
+  // 閲覧専用アカウント（書き込み系のボタン・パネルを非表示にする）
+  // ※ 表示上の制御であり、実際の書き込み禁止はDB側（RPC関数）で保証している
+  const VIEWER_ONLY_EMAILS = ["miyoshi@deradera.com", "octet@deradera.com"];
+  let isViewerOnly = false;
+
+  function applyViewerRestrictions() {
+    const writeOnlyEls = [
+      addSkuBtn, newProductBtn, matchBtn, csvBtn, ecBtn, bulkDeleteBtn,
+      editProductBtn, deleteSkuBtn, stockAdjBox, transferBox
+    ];
+    writeOnlyEls.forEach((el) => {
+      if (!el) return;
+      el.classList.toggle("hidden", isViewerOnly);
+    });
+  }
+
   async function checkSession() {
     const { data: { session } } = await client.auth.getSession();
     if (session) {
@@ -970,9 +1040,15 @@
     appScreen.classList.add("hidden");
   }
 
-  function showApp() {
+  async function showApp() {
     loginScreen.classList.add("hidden");
     appScreen.classList.remove("hidden");
+
+    const { data: { user } } = await client.auth.getUser();
+    const email = ((user && user.email) || "").toLowerCase();
+    isViewerOnly = VIEWER_ONLY_EMAILS.includes(email);
+    applyViewerRestrictions();
+
     loadProducts();
   }
 
@@ -1654,6 +1730,170 @@
     }
   });
 
+  // ===== EC引当 =====
+  // 本店（ネット）→三好→オクテットの優先順で引き当てる
+  const EC_ALLOCATION_PRIORITY = ["net", "miyoshi", "octet"];
+
+  let ecPlan = []; // [{sku, productName, needed, allocations:{net,miyoshi,octet}, shortage, found}]
+
+  ecBtn.addEventListener("click", () => {
+    ecModalOverlay.classList.remove("hidden");
+    resetEcModal();
+  });
+  ecModalClose.addEventListener("click", () => {
+    ecModalOverlay.classList.add("hidden");
+  });
+
+  function resetEcModal() {
+    ecFileInput.value = "";
+    ecFileInput.disabled = false;
+    ecSummary.textContent = "";
+    ecPreviewTable.classList.add("hidden");
+    ecPreviewBody.innerHTML = "";
+    ecApplyBtn.disabled = true;
+    ecProgress.textContent = "";
+    ecPlan = [];
+  }
+
+  ecFileInput.addEventListener("change", async () => {
+    const file = ecFileInput.files[0];
+    if (!file) return;
+    ecSummary.textContent = "解析中...";
+    ecPreviewTable.classList.add("hidden");
+    ecApplyBtn.disabled = true;
+
+    const text = await file.text();
+    const rows = parseCsvText(text);
+    if (rows.length < 2) {
+      ecSummary.textContent = "データ行が見つかりませんでした。";
+      return;
+    }
+
+    const header = rows[0].map(cleanText);
+    const skuIdx = header.findIndex(h => h === "SKU");
+    if (skuIdx === -1) {
+      ecSummary.textContent = "ヘッダー行に「SKU」の列が見つかりません。ファイル形式を確認してください。";
+      return;
+    }
+
+    // 同じSKUが複数行あれば、その行数分の数量として数える（1行=1個）
+    const skuCounts = new Map();
+    for (let i = 1; i < rows.length; i++) {
+      const sku = cleanText(rows[i][skuIdx]);
+      if (!sku) continue;
+      skuCounts.set(sku, (skuCounts.get(sku) || 0) + 1);
+    }
+
+    if (skuCounts.size === 0) {
+      ecSummary.textContent = "SKUが1件も見つかりませんでした。";
+      return;
+    }
+
+    ecPlan = buildEcAllocationPlan(skuCounts);
+    renderEcPreview();
+  });
+
+  function buildEcAllocationPlan(skuCounts) {
+    const plan = [];
+    for (const [sku, needed] of skuCounts.entries()) {
+      const p = allProducts.find(r => r.sku === sku);
+      if (!p) {
+        plan.push({ sku, productName: null, needed, allocations: { net: 0, miyoshi: 0, octet: 0 }, shortage: needed, found: false });
+        continue;
+      }
+      // 同じSKUがCSV内に複数回出てきても在庫を使い切らないよう、現在庫からその都度差し引きながら計算する
+      let remaining = needed;
+      const stock = { net: p.stock_net || 0, miyoshi: p.stock_miyoshi || 0, octet: p.stock_octet || 0 };
+      const allocations = { net: 0, miyoshi: 0, octet: 0 };
+      for (const loc of EC_ALLOCATION_PRIORITY) {
+        if (remaining <= 0) break;
+        const take = Math.min(remaining, stock[loc]);
+        if (take > 0) {
+          allocations[loc] = take;
+          remaining -= take;
+        }
+      }
+      plan.push({ sku, productName: p.product_name, needed, allocations, shortage: remaining, found: true });
+    }
+    plan.sort((a, b) => a.sku.localeCompare(b.sku));
+    return plan;
+  }
+
+  function ecStatusLabel(row) {
+    if (!row.found) return "SKUが見つかりません";
+    if (row.shortage > 0) return `欠品（${row.shortage}個不足）`;
+    return "充足";
+  }
+
+  function renderEcPreview() {
+    const shortageCount = ecPlan.filter(r => r.shortage > 0).length;
+    const notFoundCount = ecPlan.filter(r => !r.found).length;
+    ecSummary.textContent = `${ecPlan.length}SKU中、欠品あり: ${shortageCount}件、SKU不明: ${notFoundCount}件`;
+    ecPreviewTable.classList.remove("hidden");
+    ecPreviewBody.innerHTML = ecPlan.map(r => `
+      <tr class="${r.found && r.shortage === 0 ? "rowOk" : "rowError"}">
+        <td>${escapeHtml(r.sku)}</td>
+        <td>${escapeHtml(r.productName || "")}</td>
+        <td>${r.needed}</td>
+        <td>${r.allocations.net || ""}</td>
+        <td>${r.allocations.miyoshi || ""}</td>
+        <td>${r.allocations.octet || ""}</td>
+        <td>${escapeHtml(ecStatusLabel(r))}</td>
+      </tr>
+    `).join("");
+    const anyAllocation = ecPlan.some(r => r.allocations.net > 0 || r.allocations.miyoshi > 0 || r.allocations.octet > 0);
+    ecApplyBtn.disabled = !anyAllocation;
+  }
+
+  ecApplyBtn.addEventListener("click", async () => {
+    // (sku, location, amount) の実行対象一覧を作る
+    const targets = [];
+    for (const r of ecPlan) {
+      for (const loc of EC_ALLOCATION_PRIORITY) {
+        const amount = r.allocations[loc];
+        if (amount > 0) targets.push({ sku: r.sku, location: loc, amount });
+      }
+    }
+    if (targets.length === 0) return;
+    if (!confirm(`${targets.length}件の在庫引当を反映します。よろしいですか？`)) return;
+
+    ecApplyBtn.disabled = true;
+    ecFileInput.disabled = true;
+    let done = 0, failed = 0;
+    for (const t of targets) {
+      ecProgress.textContent = `反映中... ${done + failed + 1} / ${targets.length}`;
+      const { data, error } = await client.rpc("apply_stock_change", {
+        p_sku: t.sku,
+        p_location: t.location,
+        p_change_amount: -t.amount,
+        p_reason: "EC引当",
+        p_source_file: "ec_allocation"
+      });
+      if (error) {
+        failed++;
+      } else {
+        done++;
+        const local = allProducts.find(r => r.sku === t.sku);
+        if (local) {
+          local.stock_net = data.stock_net;
+          local.stock_octet = data.stock_octet;
+          local.stock_miyoshi = data.stock_miyoshi;
+        }
+      }
+    }
+    ecFileInput.disabled = false;
+    renderTable(currentFilteredRows());
+    if (selectedSku) selectSku(selectedSku);
+
+    if (failed === 0) {
+      ecProgress.textContent = `完了: ${done}件を反映しました`;
+      ecApplyBtn.disabled = true;
+    } else {
+      ecProgress.textContent = `完了: 成功 ${done}件 / 失敗 ${failed}件`;
+      ecApplyBtn.disabled = false;
+    }
+  });
+
   // ===== CSV一括反映 =====
   const csvBtn = document.getElementById("csvBtn");
   const csvModalOverlay = document.getElementById("csvModalOverlay");
@@ -1851,7 +2091,8 @@
     manual_ui: "手動（在庫増減）",
     manual_transfer: "店舗間移動",
     csv_bulk: "CSV一括反映",
-    manual_add: "SKU新規登録（初期在庫）"
+    manual_add: "SKU新規登録（初期在庫）",
+    ec_allocation: "EC引当"
   };
   let historyRows = [];
   let historyOffset = 0;
