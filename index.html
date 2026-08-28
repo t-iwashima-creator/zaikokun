@@ -529,6 +529,7 @@
           <button id="downloadCsvBtn">在庫CSVをダウンロード</button>
           <button id="bulkDeleteBtn">在庫が一点もない品番を削除</button>
           <button id="masterSyncBtn">在庫マスタ一括同期</button>
+          <button id="brandItemBtn">ブランド・アイテムを反映</button>
         </div>
       </div>
       <button id="logoutBtn">ログアウト</button>
@@ -991,6 +992,44 @@
   </div>
 </div>
 
+<div id="brandItemModalOverlay" class="modalOverlay hidden">
+  <div class="modalBox modalBoxWide">
+    <div class="modalHeader">
+      <h2>ブランド・アイテムを反映</h2>
+      <button id="brandItemModalClose" class="modalClose">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="hint">
+        楽天の「表示先カテゴリ」CSV（CP932、列に「商品管理番号（商品URL）」「表示先カテゴリ」を含むもの）をアップロードすると、
+        品番（商品管理番号）が一致する商品のうち、<strong>ブランド・アイテムが空欄のものだけ</strong>に、
+        「ブランド別＼〜＼〇〇」「アイテム別＼〜＼〇〇」の末尾の名称を反映します。すでに入力済みの値は上書きしません。
+        1つの品番に対してブランドまたはアイテムの候補が複数見つかった場合は、判断できないためスキップします（あとで手動で「修正」から入力してください）。
+        内容を確認してから反映するので、このアップロードだけでは何も変更されません。
+      </div>
+      <input type="file" id="brandItemFileInput" accept=".csv" />
+      <div id="brandItemSummary" style="font-size:13px; color:#33415c; margin-top:8px; white-space:pre-line;"></div>
+      <div style="max-height: 45vh; overflow: auto; margin-top: 10px;">
+        <table id="brandItemPreviewTable" class="previewTable hidden">
+          <thead>
+            <tr>
+              <th>品番</th>
+              <th>SKU</th>
+              <th>ブランド（反映後）</th>
+              <th>アイテム（反映後）</th>
+              <th>状態</th>
+            </tr>
+          </thead>
+          <tbody id="brandItemPreviewBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modalFooter">
+      <div id="brandItemProgress" style="font-size:12px; color:#616e7c; margin-right:auto; white-space:pre-line;"></div>
+      <button id="brandItemApplyBtn" class="modalPrimaryBtn" disabled>この内容を反映</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
   // ▼▼▼ Supabaseプロジェクトの値 ▼▼▼
@@ -1119,7 +1158,7 @@
 
   function applyViewerRestrictions() {
     const writeOnlyEls = [
-      addSkuBtn, newProductBtn, matchBtn, csvBtn, ecBtn, bulkDeleteBtn, masterSyncBtn,
+      addSkuBtn, newProductBtn, matchBtn, csvBtn, ecBtn, bulkDeleteBtn, masterSyncBtn, brandItemBtn,
       editProductBtn, deleteSkuBtn, stockAdjBox, transferBox
     ];
     writeOnlyEls.forEach((el) => {
@@ -2718,6 +2757,176 @@
     await loadProducts();
     if (selectedSku && !allProducts.some(pr => pr.sku === selectedSku)) {
       clearSelection();
+    }
+  });
+
+  // ===== ブランド・アイテムを反映（楽天カテゴリCSVから、空欄のものだけ埋める） =====
+  const brandItemBtn = document.getElementById("brandItemBtn");
+  const brandItemModalOverlay = document.getElementById("brandItemModalOverlay");
+  const brandItemModalClose = document.getElementById("brandItemModalClose");
+  const brandItemFileInput = document.getElementById("brandItemFileInput");
+  const brandItemSummary = document.getElementById("brandItemSummary");
+  const brandItemPreviewTable = document.getElementById("brandItemPreviewTable");
+  const brandItemPreviewBody = document.getElementById("brandItemPreviewBody");
+  const brandItemApplyBtn = document.getElementById("brandItemApplyBtn");
+  const brandItemProgress = document.getElementById("brandItemProgress");
+
+  let brandItemPlan = []; // [{sku, parentCode, newBrand, newItem}]
+
+  brandItemBtn.addEventListener("click", () => {
+    moreMenuPanel.classList.add("hidden");
+    brandItemModalOverlay.classList.remove("hidden");
+    resetBrandItemModal();
+  });
+  brandItemModalClose.addEventListener("click", () => {
+    brandItemModalOverlay.classList.add("hidden");
+  });
+
+  function resetBrandItemModal() {
+    brandItemFileInput.value = "";
+    brandItemFileInput.disabled = false;
+    brandItemSummary.textContent = "";
+    brandItemPreviewTable.classList.add("hidden");
+    brandItemPreviewBody.innerHTML = "";
+    brandItemApplyBtn.disabled = true;
+    brandItemProgress.textContent = "";
+    brandItemPlan = [];
+  }
+
+  brandItemFileInput.addEventListener("change", async () => {
+    const file = brandItemFileInput.files[0];
+    if (!file) return;
+    brandItemSummary.textContent = "解析中...(行数が多いため少し時間がかかります)";
+    brandItemPreviewTable.classList.add("hidden");
+    brandItemApplyBtn.disabled = true;
+
+    let text;
+    try {
+      const buffer = await file.arrayBuffer();
+      text = new TextDecoder("shift_jis").decode(buffer); // 楽天のCSVはCP932
+    } catch (e) {
+      brandItemSummary.textContent = "ファイルの読み込みに失敗しました: " + e.message;
+      return;
+    }
+    const rows = parseCsvText(text);
+    if (rows.length < 2) {
+      brandItemSummary.textContent = "データ行が見つかりませんでした。";
+      return;
+    }
+    const header = rows[0].map(cleanText);
+    const codeIdx = header.findIndex(h => h === "商品管理番号（商品URL）");
+    const catIdx = header.findIndex(h => h === "表示先カテゴリ");
+    if (codeIdx === -1 || catIdx === -1) {
+      brandItemSummary.textContent = "ヘッダー行に「商品管理番号（商品URL）」または「表示先カテゴリ」の列が見つかりません。ファイル形式を確認してください。";
+      return;
+    }
+
+    // 品番ごとに、ブランド別／アイテム別の候補を集める
+    const brandCandidates = new Map(); // parent_code -> Set(brand名)
+    const itemCandidates = new Map();  // parent_code -> Set(item名)
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      const code = cleanText(r[codeIdx]);
+      const cat = cleanText(r[catIdx]);
+      if (!code || !cat) continue;
+      const parts = cat.split("\\").map(s => s.trim()).filter(s => s !== "");
+      if (parts.length < 2) continue;
+      const leaf = parts[parts.length - 1];
+      if (parts[0] === "ブランド別") {
+        if (!brandCandidates.has(code)) brandCandidates.set(code, new Set());
+        brandCandidates.get(code).add(leaf);
+      } else if (parts[0] === "アイテム別") {
+        if (!itemCandidates.has(code)) itemCandidates.set(code, new Set());
+        itemCandidates.get(code).add(leaf);
+      }
+    }
+
+    // 候補が1つだけに絞れた品番だけを採用する（複数あるものは判断できないため対象外）
+    const categoryMap = new Map(); // parent_code -> {brand, item}
+    const allCodes = new Set([...brandCandidates.keys(), ...itemCandidates.keys()]);
+    for (const code of allCodes) {
+      const bSet = brandCandidates.get(code);
+      const iSet = itemCandidates.get(code);
+      categoryMap.set(code, {
+        brand: bSet && bSet.size === 1 ? [...bSet][0] : null,
+        item: iSet && iSet.size === 1 ? [...iSet][0] : null
+      });
+    }
+
+    // 在庫君側で、品番が一致し、ブランドまたはアイテムが空欄の商品を対象にする
+    const plan = [];
+    for (const p of allProducts) {
+      if (!p.parent_code) continue;
+      const c = categoryMap.get(p.parent_code);
+      if (!c) continue;
+      const needBrand = !p.brand && c.brand;
+      const needItem = !p.item_category && c.item;
+      if (!needBrand && !needItem) continue;
+      plan.push({
+        sku: p.sku,
+        parentCode: p.parent_code,
+        currentBrand: p.brand || null,
+        currentItem: p.item_category || null,
+        newBrand: needBrand ? c.brand : (p.brand || null),
+        newItem: needItem ? c.item : (p.item_category || null)
+      });
+    }
+
+    brandItemPlan = plan;
+    renderBrandItemPreview(categoryMap.size);
+  });
+
+  function renderBrandItemPreview(codeCount) {
+    brandItemSummary.textContent = `カテゴリCSV内の品番: ${codeCount}件 / 反映対象SKU: ${brandItemPlan.length}件（ブランド・アイテムが空欄で、かつ候補が1つに絞れたもののみ対象）`;
+    brandItemPreviewTable.classList.remove("hidden");
+    brandItemPreviewBody.innerHTML = brandItemPlan.map(p => `
+      <tr class="rowOk">
+        <td>${escapeHtml(p.parentCode)}</td>
+        <td>${escapeHtml(p.sku)}</td>
+        <td>${escapeHtml(p.newBrand || "")}</td>
+        <td>${escapeHtml(p.newItem || "")}</td>
+        <td>OK</td>
+      </tr>
+    `).join("");
+    brandItemApplyBtn.disabled = brandItemPlan.length === 0;
+  }
+
+  brandItemApplyBtn.addEventListener("click", async () => {
+    const targets = brandItemPlan;
+    if (targets.length === 0) return;
+    if (!confirm(`${targets.length}件のSKUにブランド・アイテムを反映します。よろしいですか？`)) return;
+
+    brandItemApplyBtn.disabled = true;
+    brandItemFileInput.disabled = true;
+    let done = 0, failed = 0;
+    for (const p of targets) {
+      brandItemProgress.textContent = `反映中... ${done + failed + 1} / ${targets.length}`;
+      const existing = allProducts.find(r => r.sku === p.sku);
+      const { data, error } = await client.rpc("update_product_info", {
+        p_sku: p.sku,
+        p_parent_code: existing ? existing.parent_code : p.parentCode,
+        p_product_name: existing ? existing.product_name : null,
+        p_brand: p.newBrand,
+        p_item_category: p.newItem
+      });
+      if (error) {
+        failed++;
+      } else {
+        done++;
+        const local = allProducts.find(r => r.sku === p.sku);
+        if (local) Object.assign(local, data);
+      }
+    }
+    brandItemFileInput.disabled = false;
+    renderTable(currentFilteredRows());
+    if (selectedSku) selectSku(selectedSku);
+
+    if (failed === 0) {
+      brandItemModalOverlay.classList.add("hidden");
+      resetBrandItemModal();
+    } else {
+      brandItemProgress.textContent = `完了: 成功 ${done}件 / 失敗 ${failed}件`;
+      renderBrandItemPreview(0);
     }
   });
 
