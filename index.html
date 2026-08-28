@@ -352,18 +352,6 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     padding: 12px;
   }
-  #costHeading {
-    cursor: pointer;
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-  }
-  #costHeading:hover { color: #1f6feb; }
-  #costValueHint {
-    font-size: 11px;
-    font-weight: normal;
-    color: #1f6feb;
-  }
   #costValueTable { width: 100%; border-collapse: collapse; }
   #costValueTable th, #costValueTable td {
     padding: 10px 8px;
@@ -563,6 +551,7 @@
           <button id="masterSyncBtn">在庫マスタ一括同期</button>
           <button id="brandItemBtn">ブランド・アイテムを反映</button>
           <button id="costImportBtn">原価を一括反映</button>
+          <button id="costValueBtn">在庫評価額を見る</button>
         </div>
       </div>
       <button id="logoutBtn">ログアウト</button>
@@ -680,7 +669,7 @@
         </div>
 
         <div class="panelBox hidden" id="costRow">
-          <h3 id="costHeading" title="クリックすると在庫評価額（原価×在庫数）を表示します">原価<span id="costValueHint">（在庫評価額を見る）</span></h3>
+          <h3>原価</h3>
           <label style="margin-top:0;">原価（円・品番単位）</label>
           <input type="number" id="costInput" step="1" placeholder="例: 3000" />
           <button id="costSaveBtn">原価を保存</button>
@@ -1113,10 +1102,13 @@
 <div id="costValueModalOverlay" class="modalOverlay hidden">
   <div class="modalBox">
     <div class="modalHeader">
-      <h2>在庫評価額（原価×在庫数）</h2>
+      <h2>在庫評価額（全商品合計）</h2>
       <button id="costValueModalClose" class="modalClose">✕</button>
     </div>
     <div class="modalBody">
+      <div class="hint">
+        在庫君に登録されている全商品について、原価×在庫数を合計した金額です。原価が未設定の商品は0円として計算しています。
+      </div>
       <table id="costValueTable">
         <tbody>
           <tr class="costValueTotal"><th>全体</th><td id="costValueAll">-</td></tr>
@@ -1177,7 +1169,7 @@
   const deleteMsg = document.getElementById("deleteMsg");
 
   const costRow = document.getElementById("costRow");
-  const costHeading = document.getElementById("costHeading");
+  const costValueBtn = document.getElementById("costValueBtn");
   const costValueModalOverlay = document.getElementById("costValueModalOverlay");
   const costValueModalClose = document.getElementById("costValueModalClose");
   const costValueAll = document.getElementById("costValueAll");
@@ -1271,7 +1263,7 @@
 
   function applyViewerRestrictions() {
     const writeOnlyEls = [
-      addSkuBtn, newProductBtn, matchBtn, csvBtn, ecBtn, bulkDeleteBtn, masterSyncBtn, brandItemBtn, costImportBtn,
+      addSkuBtn, newProductBtn, matchBtn, csvBtn, ecBtn, bulkDeleteBtn, masterSyncBtn, brandItemBtn, costImportBtn, costValueBtn,
       editProductBtn, deleteSkuBtn, stockAdjBox, transferBox, costRow
     ];
     writeOnlyEls.forEach((el) => {
@@ -1542,20 +1534,31 @@
     return "¥" + Math.round(n).toLocaleString("ja-JP");
   }
 
-  costHeading.addEventListener("click", () => {
-    if (!selectedSku) return;
-    const p = allProducts.find((r) => r.sku === selectedSku);
-    if (!p) return;
-    const cost = parseFloat(costInput.value);
-    const costValue = Number.isFinite(cost) ? cost : 0;
-    const net = Number(p.stock_net) || 0;
-    const octet = Number(p.stock_octet) || 0;
-    const miyoshi = Number(p.stock_miyoshi) || 0;
+  costValueBtn.addEventListener("click", async () => {
+    moreMenuPanel.classList.add("hidden");
+    costValueBtn.disabled = true;
+    const originalText = costValueBtn.textContent;
+    costValueBtn.textContent = "計算中...";
 
-    costValueAll.textContent = formatYen(costValue * (net + octet + miyoshi));
-    costValueNet.textContent = formatYen(costValue * net);
-    costValueOctet.textContent = formatYen(costValue * octet);
-    costValueMiyoshi.textContent = formatYen(costValue * miyoshi);
+    const { data, error } = await client.rpc("get_inventory_value");
+
+    costValueBtn.disabled = false;
+    costValueBtn.textContent = originalText;
+
+    if (error) {
+      alert("在庫評価額の取得に失敗しました: " + error.message);
+      return;
+    }
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) {
+      alert("在庫評価額の取得に失敗しました");
+      return;
+    }
+
+    costValueAll.textContent = formatYen(row.total_value);
+    costValueNet.textContent = formatYen(row.net_value);
+    costValueOctet.textContent = formatYen(row.octet_value);
+    costValueMiyoshi.textContent = formatYen(row.miyoshi_value);
 
     costValueModalOverlay.classList.remove("hidden");
   });
