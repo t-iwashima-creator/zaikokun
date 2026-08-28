@@ -588,6 +588,13 @@
             <button id="deleteSkuBtn" class="dangerBtn" disabled>削除</button>
           </div>
           <div id="deleteMsg" class="panelMsg"></div>
+
+          <div id="costRow" class="hidden" style="margin-top:10px; border-top:1px solid #eef1f4; padding-top:10px;">
+            <label style="margin-top:0;">原価（円・品番単位）</label>
+            <input type="number" id="costInput" step="1" placeholder="例: 3000" />
+            <button id="costSaveBtn">原価を保存</button>
+            <div id="costMsg" class="panelMsg"></div>
+          </div>
         </div>
 
         <div class="panelBox hidden" id="completeInfoBox">
@@ -1075,6 +1082,11 @@
   const deleteSkuBtn = document.getElementById("deleteSkuBtn");
   const deleteMsg = document.getElementById("deleteMsg");
 
+  const costRow = document.getElementById("costRow");
+  const costInput = document.getElementById("costInput");
+  const costSaveBtn = document.getElementById("costSaveBtn");
+  const costMsg = document.getElementById("costMsg");
+
   const completeInfoBox = document.getElementById("completeInfoBox");
   const completeParentCode = document.getElementById("completeParentCode");
   const completeProductName = document.getElementById("completeProductName");
@@ -1159,7 +1171,7 @@
   function applyViewerRestrictions() {
     const writeOnlyEls = [
       addSkuBtn, newProductBtn, matchBtn, csvBtn, ecBtn, bulkDeleteBtn, masterSyncBtn, brandItemBtn,
-      editProductBtn, deleteSkuBtn, stockAdjBox, transferBox
+      editProductBtn, deleteSkuBtn, stockAdjBox, transferBox, costRow
     ];
     writeOnlyEls.forEach((el) => {
       if (!el) return;
@@ -1289,7 +1301,7 @@
     });
   }
 
-  function selectSku(sku) {
+  async function selectSku(sku) {
     selectedSku = sku;
     const p = allProducts.find(r => r.sku === sku);
     if (p) {
@@ -1312,6 +1324,17 @@
       completeBrand.value = p.brand || "";
       completeItemCategory.value = p.item_category || "";
       completeInfoBox.classList.add("hidden");
+
+      // 原価は一覧には出さず、選択のたびに専用RPCで取得する（閲覧専用アカウントには渡らない）
+      if (!isViewerOnly) {
+        costRow.classList.remove("hidden");
+        costInput.value = "";
+        costMsg.textContent = "";
+        const { data: costData, error: costError } = await client.rpc("get_product_cost", { p_sku: sku });
+        if (!costError && costData !== null && costData !== undefined) {
+          costInput.value = costData;
+        }
+      }
     }
     document.querySelectorAll("#tableBody tr").forEach(tr => {
       tr.classList.toggle("selected", tr.dataset.sku === sku);
@@ -1335,7 +1358,48 @@
     deleteSkuBtn.title = "";
     editProductBtn.disabled = true;
     completeInfoBox.classList.add("hidden");
+    costRow.classList.add("hidden");
+    costInput.value = "";
+    costMsg.textContent = "";
   }
+
+  costSaveBtn.addEventListener("click", async () => {
+    costMsg.textContent = "";
+    costMsg.className = "panelMsg";
+    if (!selectedSku) {
+      costMsg.textContent = "先に表から商品を選択してください";
+      costMsg.className = "panelMsg err";
+      return;
+    }
+    const raw = costInput.value.trim();
+    const cost = raw === "" ? null : parseFloat(raw);
+    if (raw !== "" && !Number.isFinite(cost)) {
+      costMsg.textContent = "原価は数値で入力してください";
+      costMsg.className = "panelMsg err";
+      return;
+    }
+    costSaveBtn.disabled = true;
+    costSaveBtn.textContent = "保存中...";
+    const { data, error } = await client.rpc("update_product_cost", {
+      p_sku: selectedSku,
+      p_cost_price: cost
+    });
+    costSaveBtn.disabled = false;
+    costSaveBtn.textContent = "原価を保存";
+    if (error) {
+      costMsg.textContent = "エラー: " + error.message;
+      costMsg.className = "panelMsg err";
+      return;
+    }
+    if (Array.isArray(data)) {
+      data.forEach((row) => {
+        const local = allProducts.find((p) => p.sku === row.sku);
+        if (local) local.cost_price = row.cost_price;
+      });
+    }
+    costMsg.textContent = "保存しました（同じ品番の全SKUに反映されました）";
+    costMsg.className = "panelMsg ok";
+  });
 
   function updateLocalStock(sku, updates) {
     const p = allProducts.find(r => r.sku === sku);
