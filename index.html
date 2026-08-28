@@ -530,6 +530,7 @@
           <button id="bulkDeleteBtn">在庫が一点もない品番を削除</button>
           <button id="masterSyncBtn">在庫マスタ一括同期</button>
           <button id="brandItemBtn">ブランド・アイテムを反映</button>
+          <button id="costImportBtn">原価を一括反映</button>
         </div>
       </div>
       <button id="logoutBtn">ログアウト</button>
@@ -1037,6 +1038,41 @@
   </div>
 </div>
 
+<div id="costImportModalOverlay" class="modalOverlay hidden">
+  <div class="modalBox modalBoxWide">
+    <div class="modalHeader">
+      <h2>原価を一括反映</h2>
+      <button id="costImportModalClose" class="modalClose">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="hint">
+        原価CSV（CP932、列に「商品コード」「原価」を含むもの）をアップロードすると、商品コード（品番）が一致する商品の原価をまとめて更新します。
+        原価は一覧表には出ず、選択中の商品パネルの中だけで確認できます。品番が在庫君に存在しないコードはスキップされます。
+        内容を確認してから反映するので、このアップロードだけでは何も変更されません。
+      </div>
+      <input type="file" id="costImportFileInput" accept=".csv" />
+      <div id="costImportSummary" style="font-size:13px; color:#33415c; margin-top:8px; white-space:pre-line;"></div>
+      <div style="max-height: 45vh; overflow: auto; margin-top: 10px;">
+        <table id="costImportPreviewTable" class="previewTable hidden">
+          <thead>
+            <tr>
+              <th>品番</th>
+              <th>原価</th>
+              <th>対象SKU数</th>
+              <th>状態</th>
+            </tr>
+          </thead>
+          <tbody id="costImportPreviewBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modalFooter">
+      <div id="costImportProgress" style="font-size:12px; color:#616e7c; margin-right:auto; white-space:pre-line;"></div>
+      <button id="costImportApplyBtn" class="modalPrimaryBtn" disabled>この内容を反映</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
   // ▼▼▼ Supabaseプロジェクトの値 ▼▼▼
@@ -1170,7 +1206,7 @@
 
   function applyViewerRestrictions() {
     const writeOnlyEls = [
-      addSkuBtn, newProductBtn, matchBtn, csvBtn, ecBtn, bulkDeleteBtn, masterSyncBtn, brandItemBtn,
+      addSkuBtn, newProductBtn, matchBtn, csvBtn, ecBtn, bulkDeleteBtn, masterSyncBtn, brandItemBtn, costImportBtn,
       editProductBtn, deleteSkuBtn, stockAdjBox, transferBox, costRow
     ];
     writeOnlyEls.forEach((el) => {
@@ -2991,6 +3027,152 @@
     } else {
       brandItemProgress.textContent = `完了: 成功 ${done}件 / 失敗 ${failed}件`;
       renderBrandItemPreview(0);
+    }
+  });
+
+  // ===== 原価を一括反映 =====
+  const costImportBtn = document.getElementById("costImportBtn");
+  const costImportModalOverlay = document.getElementById("costImportModalOverlay");
+  const costImportModalClose = document.getElementById("costImportModalClose");
+  const costImportFileInput = document.getElementById("costImportFileInput");
+  const costImportSummary = document.getElementById("costImportSummary");
+  const costImportPreviewTable = document.getElementById("costImportPreviewTable");
+  const costImportPreviewBody = document.getElementById("costImportPreviewBody");
+  const costImportApplyBtn = document.getElementById("costImportApplyBtn");
+  const costImportProgress = document.getElementById("costImportProgress");
+
+  let costImportPlan = []; // [{parentCode, cost, skuCount}]
+  let costImportSkippedCount = 0;
+
+  costImportBtn.addEventListener("click", () => {
+    moreMenuPanel.classList.add("hidden");
+    costImportModalOverlay.classList.remove("hidden");
+    resetCostImportModal();
+  });
+  costImportModalClose.addEventListener("click", () => {
+    costImportModalOverlay.classList.add("hidden");
+  });
+
+  function resetCostImportModal() {
+    costImportFileInput.value = "";
+    costImportFileInput.disabled = false;
+    costImportSummary.textContent = "";
+    costImportPreviewTable.classList.add("hidden");
+    costImportPreviewBody.innerHTML = "";
+    costImportApplyBtn.disabled = true;
+    costImportProgress.textContent = "";
+    costImportPlan = [];
+    costImportSkippedCount = 0;
+  }
+
+  costImportFileInput.addEventListener("change", async () => {
+    const file = costImportFileInput.files[0];
+    if (!file) return;
+    costImportSummary.textContent = "解析中...";
+    costImportPreviewTable.classList.add("hidden");
+    costImportApplyBtn.disabled = true;
+
+    let text;
+    try {
+      const buffer = await file.arrayBuffer();
+      text = new TextDecoder("shift_jis").decode(buffer); // CP932
+    } catch (e) {
+      costImportSummary.textContent = "ファイルの読み込みに失敗しました: " + e.message;
+      return;
+    }
+    const rows = parseCsvText(text);
+    if (rows.length < 2) {
+      costImportSummary.textContent = "データ行が見つかりませんでした。";
+      return;
+    }
+    const header = rows[0].map(cleanText);
+    const codeIdx = header.findIndex(h => h === "商品コード");
+    const costIdx = header.findIndex(h => h === "原価");
+    if (codeIdx === -1 || costIdx === -1) {
+      costImportSummary.textContent = "ヘッダー行に「商品コード」または「原価」の列が見つかりません。ファイル形式を確認してください。";
+      return;
+    }
+
+    // 品番ごとの原価をCSVから読み取る（同じ品番が複数回出てきたら最後の行を採用）
+    const costMap = new Map();
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      const code = cleanText(r[codeIdx]);
+      if (!code) continue;
+      const costRaw = cleanText(r[costIdx]);
+      const cost = parseFloat(costRaw);
+      if (!Number.isFinite(cost)) continue;
+      costMap.set(code, cost);
+    }
+
+    // 在庫君に実在する品番だけを対象にする
+    const parentSkuCount = new Map(); // parent_code -> SKU数
+    for (const p of allProducts) {
+      if (!p.parent_code) continue;
+      parentSkuCount.set(p.parent_code, (parentSkuCount.get(p.parent_code) || 0) + 1);
+    }
+
+    const plan = [];
+    let skipped = 0;
+    for (const [code, cost] of costMap.entries()) {
+      const skuCount = parentSkuCount.get(code);
+      if (!skuCount) { skipped++; continue; }
+      plan.push({ parentCode: code, cost, skuCount });
+    }
+    plan.sort((a, b) => a.parentCode.localeCompare(b.parentCode));
+
+    costImportPlan = plan;
+    costImportSkippedCount = skipped;
+    renderCostImportPreview();
+  });
+
+  function renderCostImportPreview() {
+    costImportSummary.textContent = `CSV: ${costImportPlan.length + costImportSkippedCount}件の品番 / 反映対象: ${costImportPlan.length}件 / 在庫君に無い品番でスキップ: ${costImportSkippedCount}件`;
+    costImportPreviewTable.classList.remove("hidden");
+    costImportPreviewBody.innerHTML = costImportPlan.map(p => `
+      <tr class="rowOk">
+        <td>${escapeHtml(p.parentCode)}</td>
+        <td>${p.cost}</td>
+        <td>${p.skuCount}</td>
+        <td>OK</td>
+      </tr>
+    `).join("");
+    costImportApplyBtn.disabled = costImportPlan.length === 0;
+  }
+
+  costImportApplyBtn.addEventListener("click", async () => {
+    const targets = costImportPlan;
+    if (targets.length === 0) return;
+    if (!confirm(`${targets.length}件の品番に原価を反映します。よろしいですか？`)) return;
+
+    costImportApplyBtn.disabled = true;
+    costImportFileInput.disabled = true;
+    let done = 0, failed = 0;
+    for (const p of targets) {
+      costImportProgress.textContent = `反映中... ${done + failed + 1} / ${targets.length}`;
+      const { data, error } = await client.rpc("update_cost_by_parent_code", {
+        p_parent_code: p.parentCode,
+        p_cost_price: p.cost
+      });
+      if (error) {
+        failed++;
+      } else {
+        done++;
+        if (Array.isArray(data)) {
+          data.forEach((row) => {
+            const local = allProducts.find((r) => r.sku === row.sku);
+            if (local) local.cost_price = row.cost_price;
+          });
+        }
+      }
+    }
+    costImportFileInput.disabled = false;
+
+    if (failed === 0) {
+      costImportModalOverlay.classList.add("hidden");
+      resetCostImportModal();
+    } else {
+      costImportProgress.textContent = `完了: 成功 ${done}件 / 失敗 ${failed}件`;
     }
   });
 
