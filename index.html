@@ -409,7 +409,7 @@
   .panelMsg.err { color: #cc3344; }
   .panelNote { font-size: 11px; color: #9aa5b1; margin-top: 6px; line-height: 1.5; }
 
-  table {
+  #tableWrap table {
     width: 100%;
     table-layout: fixed;
     border-collapse: collapse;
@@ -474,6 +474,20 @@
   }
   #ecPrintBtn:hover { background: #f5f8ff; }
   #ecPrintBtn:disabled { color: #9aa5b1; border-color: #cbd2d9; cursor: not-allowed; }
+  /* 在庫変動履歴プレビュー用の列幅（SKUは省略されず見えるように） */
+  #historyPreviewTable { table-layout: fixed; min-width: 980px; }
+  #historyPreviewTable col.hCol-date { width: 130px; }
+  #historyPreviewTable col.hCol-sku { width: 140px; }
+  #historyPreviewTable col.hCol-name { width: 190px; }
+  #historyPreviewTable col.hCol-loc { width: 60px; }
+  #historyPreviewTable col.hCol-amount { width: 60px; }
+  #historyPreviewTable col.hCol-reason { width: 130px; }
+  #historyPreviewTable col.hCol-source { width: 110px; }
+  #historyPreviewTable col.hCol-user { width: 160px; }
+  #historyPreviewTable td {
+    white-space: normal;
+    word-break: break-all;
+  }
   td.col-brand, td.col-category { font-size: 12px; color: #52606d; }
   tbody tr { cursor: pointer; }
   tbody tr:hover { background: #f8fafc; }
@@ -776,8 +790,18 @@
         <button id="historySearchBtn" class="modalPrimaryBtn" style="width:auto;">検索</button>
       </div>
       <div id="historySummary" style="font-size:13px; color:#33415c; margin-top:10px;"></div>
-      <div style="max-height: 50vh; overflow-y: auto; margin-top: 10px;">
+      <div style="max-height: 50vh; overflow: auto; margin-top: 10px;">
         <table id="historyPreviewTable" class="previewTable hidden">
+          <colgroup>
+            <col class="hCol-date">
+            <col class="hCol-sku">
+            <col class="hCol-name">
+            <col class="hCol-loc">
+            <col class="hCol-amount">
+            <col class="hCol-reason">
+            <col class="hCol-source">
+            <col class="hCol-user">
+          </colgroup>
           <thead>
             <tr>
               <th>日時</th>
