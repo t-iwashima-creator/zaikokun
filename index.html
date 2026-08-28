@@ -309,6 +309,15 @@
     white-space: nowrap;
   }
   #incompleteOnlyLabel input { width: auto; }
+  #costMissingLabel {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #52606d;
+    white-space: nowrap;
+  }
+  #costMissingLabel input { width: auto; }
   #rowCount { color: #616e7c; font-size: 13px; }
 
   /* two-column layout: table + side panel */
@@ -543,6 +552,10 @@
         <input type="checkbox" id="incompleteOnlyCheckbox" />
         品番・商品名など未設定のみ表示
       </label>
+      <label id="costMissingLabel" class="hidden">
+        <input type="checkbox" id="costMissingCheckbox" />
+        原価未設定のみ表示
+      </label>
       <span id="rowCount"></span>
     </div>
     <div id="loadingMsg">読み込み中...</div>
@@ -589,13 +602,6 @@
             <button id="deleteSkuBtn" class="dangerBtn" disabled>削除</button>
           </div>
           <div id="deleteMsg" class="panelMsg"></div>
-
-          <div id="costRow" class="hidden" style="margin-top:10px; border-top:1px solid #eef1f4; padding-top:10px;">
-            <label style="margin-top:0;">原価（円・品番単位）</label>
-            <input type="number" id="costInput" step="1" placeholder="例: 3000" />
-            <button id="costSaveBtn">原価を保存</button>
-            <div id="costMsg" class="panelMsg"></div>
-          </div>
         </div>
 
         <div class="panelBox hidden" id="completeInfoBox">
@@ -648,6 +654,14 @@
           <input type="text" id="transReason" placeholder="例: 商品移動" />
           <button id="transSubmitBtn">移動を反映</button>
           <div id="transMsg" class="panelMsg"></div>
+        </div>
+
+        <div class="panelBox hidden" id="costRow">
+          <h3>原価</h3>
+          <label style="margin-top:0;">原価（円・品番単位）</label>
+          <input type="number" id="costInput" step="1" placeholder="例: 3000" />
+          <button id="costSaveBtn">原価を保存</button>
+          <div id="costMsg" class="panelMsg"></div>
         </div>
       </div>
     </div>
@@ -1092,6 +1106,8 @@
   const loginError = document.getElementById("loginError");
   const searchInput = document.getElementById("searchInput");
   const incompleteOnlyCheckbox = document.getElementById("incompleteOnlyCheckbox");
+  const costMissingLabel = document.getElementById("costMissingLabel");
+  const costMissingCheckbox = document.getElementById("costMissingCheckbox");
   const tableBody = document.getElementById("tableBody");
   const layout = document.getElementById("layout");
   const loadingMsg = document.getElementById("loadingMsg");
@@ -1213,6 +1229,11 @@
       if (!el) return;
       el.classList.toggle("hidden", isViewerOnly);
     });
+
+    // 原価未設定のみ表示チェックボックスも、原価に関連するので閲覧専用アカウントには見せない
+    if (costMissingLabel) {
+      costMissingLabel.classList.toggle("hidden", isViewerOnly);
+    }
   }
 
   async function checkSession() {
@@ -1299,6 +1320,35 @@
     loadingMsg.classList.add("hidden");
     layout.classList.remove("hidden");
     renderTable(currentFilteredRows());
+  }
+
+  // 原価が未設定(null)のSKU一覧(値そのものは取得しない・閲覧専用アカウントには常に空)
+  let costMissingSkuSet = null;
+
+  async function loadCostMissingSkus() {
+    if (isViewerOnly) {
+      costMissingSkuSet = new Set();
+      return;
+    }
+    let all = [];
+    let from = 0;
+    const pageSize = 1000;
+    while (true) {
+      const { data, error } = await client
+        .from("products")
+        .select("sku")
+        .is("cost_price", null)
+        .range(from, from + pageSize - 1);
+      if (error) {
+        alert("原価未設定の商品の取得に失敗しました: " + error.message);
+        costMissingSkuSet = new Set();
+        return;
+      }
+      all = all.concat(data);
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+    costMissingSkuSet = new Set(all.map(r => r.sku));
   }
 
   function cell(v, isNum) {
@@ -1433,6 +1483,8 @@
         if (local) local.cost_price = row.cost_price;
       });
     }
+    // 原価が変わったので、「原価未設定のみ表示」の絞り込み結果は次回チェック時に取り直す
+    costMissingSkuSet = null;
     costMsg.textContent = "保存しました（同じ品番の全SKUに反映されました）";
     costMsg.className = "panelMsg ok";
   });
@@ -1450,6 +1502,9 @@
     if (incompleteOnlyCheckbox.checked) {
       rows = rows.filter(isIncomplete);
     }
+    if (costMissingCheckbox && costMissingCheckbox.checked && costMissingSkuSet) {
+      rows = rows.filter(r => costMissingSkuSet.has(r.sku));
+    }
     if (!q) return rows;
     return rows.filter(r =>
       (r.sku || "").toLowerCase().includes(q) ||
@@ -1466,6 +1521,17 @@
   incompleteOnlyCheckbox.addEventListener("change", () => {
     renderTable(currentFilteredRows());
   });
+
+  if (costMissingCheckbox) {
+    costMissingCheckbox.addEventListener("change", async () => {
+      if (costMissingCheckbox.checked && costMissingSkuSet === null) {
+        costMissingCheckbox.disabled = true;
+        await loadCostMissingSkus();
+        costMissingCheckbox.disabled = false;
+      }
+      renderTable(currentFilteredRows());
+    });
+  }
 
   adjSubmitBtn.addEventListener("click", async () => {
     adjMsg.textContent = "";
@@ -3167,6 +3233,8 @@
       }
     }
     costImportFileInput.disabled = false;
+    // 原価が変わったので、「原価未設定のみ表示」の絞り込み結果は次回チェック時に取り直す
+    costMissingSkuSet = null;
 
     if (failed === 0) {
       costImportModalOverlay.classList.add("hidden");
