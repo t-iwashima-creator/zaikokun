@@ -352,6 +352,29 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     padding: 12px;
   }
+  #costHeading {
+    cursor: pointer;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  #costHeading:hover { color: #1f6feb; }
+  #costValueHint {
+    font-size: 11px;
+    font-weight: normal;
+    color: #1f6feb;
+  }
+  #costValueTable { width: 100%; border-collapse: collapse; }
+  #costValueTable th, #costValueTable td {
+    padding: 10px 8px;
+    border-bottom: 1px solid #eef1f4;
+    text-align: left;
+    font-size: 14px;
+  }
+  #costValueTable th { color: #52606d; font-weight: 500; width: 40%; }
+  #costValueTable td { text-align: right; font-variant-numeric: tabular-nums; }
+  #costValueTable tr.costValueTotal th,
+  #costValueTable tr.costValueTotal td { font-weight: bold; font-size: 16px; border-bottom: none; }
   .panelBox h3 {
     margin: 0 0 8px 0;
     font-size: 13px;
@@ -657,7 +680,7 @@
         </div>
 
         <div class="panelBox hidden" id="costRow">
-          <h3>原価</h3>
+          <h3 id="costHeading" title="クリックすると在庫評価額（原価×在庫数）を表示します">原価<span id="costValueHint">（在庫評価額を見る）</span></h3>
           <label style="margin-top:0;">原価（円・品番単位）</label>
           <input type="number" id="costInput" step="1" placeholder="例: 3000" />
           <button id="costSaveBtn">原価を保存</button>
@@ -1087,6 +1110,25 @@
   </div>
 </div>
 
+<div id="costValueModalOverlay" class="modalOverlay hidden">
+  <div class="modalBox">
+    <div class="modalHeader">
+      <h2>在庫評価額（原価×在庫数）</h2>
+      <button id="costValueModalClose" class="modalClose">✕</button>
+    </div>
+    <div class="modalBody">
+      <table id="costValueTable">
+        <tbody>
+          <tr class="costValueTotal"><th>全体</th><td id="costValueAll">-</td></tr>
+          <tr><th>ネット</th><td id="costValueNet">-</td></tr>
+          <tr><th>オクテット</th><td id="costValueOctet">-</td></tr>
+          <tr><th>三好</th><td id="costValueMiyoshi">-</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
   // ▼▼▼ Supabaseプロジェクトの値 ▼▼▼
@@ -1135,6 +1177,13 @@
   const deleteMsg = document.getElementById("deleteMsg");
 
   const costRow = document.getElementById("costRow");
+  const costHeading = document.getElementById("costHeading");
+  const costValueModalOverlay = document.getElementById("costValueModalOverlay");
+  const costValueModalClose = document.getElementById("costValueModalClose");
+  const costValueAll = document.getElementById("costValueAll");
+  const costValueNet = document.getElementById("costValueNet");
+  const costValueOctet = document.getElementById("costValueOctet");
+  const costValueMiyoshi = document.getElementById("costValueMiyoshi");
   const costInput = document.getElementById("costInput");
   const costSaveBtn = document.getElementById("costSaveBtn");
   const costMsg = document.getElementById("costMsg");
@@ -1487,6 +1536,32 @@
     costMissingSkuSet = null;
     costMsg.textContent = "保存しました（同じ品番の全SKUに反映されました）";
     costMsg.className = "panelMsg ok";
+  });
+
+  function formatYen(n) {
+    return "¥" + Math.round(n).toLocaleString("ja-JP");
+  }
+
+  costHeading.addEventListener("click", () => {
+    if (!selectedSku) return;
+    const p = allProducts.find((r) => r.sku === selectedSku);
+    if (!p) return;
+    const cost = parseFloat(costInput.value);
+    const costValue = Number.isFinite(cost) ? cost : 0;
+    const net = Number(p.stock_net) || 0;
+    const octet = Number(p.stock_octet) || 0;
+    const miyoshi = Number(p.stock_miyoshi) || 0;
+
+    costValueAll.textContent = formatYen(costValue * (net + octet + miyoshi));
+    costValueNet.textContent = formatYen(costValue * net);
+    costValueOctet.textContent = formatYen(costValue * octet);
+    costValueMiyoshi.textContent = formatYen(costValue * miyoshi);
+
+    costValueModalOverlay.classList.remove("hidden");
+  });
+
+  costValueModalClose.addEventListener("click", () => {
+    costValueModalOverlay.classList.add("hidden");
   });
 
   function updateLocalStock(sku, updates) {
