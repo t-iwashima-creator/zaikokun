@@ -528,6 +528,7 @@
           <button id="historyBtn">変動履歴を見る</button>
           <button id="downloadCsvBtn">在庫CSVをダウンロード</button>
           <button id="bulkDeleteBtn">在庫が一点もない品番を削除</button>
+          <button id="masterSyncBtn">在庫マスタ一括同期</button>
         </div>
       </div>
       <button id="logoutBtn">ログアウト</button>
@@ -947,6 +948,49 @@
   </div>
 </div>
 
+<div id="masterSyncModalOverlay" class="modalOverlay hidden">
+  <div class="modalBox modalBoxWide">
+    <div class="modalHeader">
+      <h2>在庫マスタ一括同期</h2>
+      <button id="masterSyncModalClose" class="modalClose">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="hint">
+        受注/在庫管理システムが出力するCSV（ヘッダーなし、1行=「SKU,本店,オクテット,三好,津島」、空欄は0扱い）をアップロードすると、在庫君の在庫をこのCSVの内容に合わせて丸ごと同期します。<br>
+        ・CSVにあるSKU：在庫君の在庫をCSVの数字で上書きします（増減ではなく絶対値としてセットします）<br>
+        ・CSVに無いSKU：在庫君からは<strong>削除</strong>します（在庫が残っていても削除します）<br>
+        ・CSVにあるが在庫君に無いSKU：品番・商品名などは空欄のまま新規登録します<br>
+        津島列は在庫君では管理していないため無視します。内容を確認してから反映するので、アップロードだけでは何も変更されません。
+      </div>
+      <input type="file" id="masterSyncFileInput" accept=".csv" />
+      <div id="masterSyncSummary" style="font-size:13px; color:#33415c; margin-top:8px; white-space:pre-line;"></div>
+      <div id="masterSyncDeleteWarning" class="hidden" style="margin-top:10px; padding:10px 12px; background:#fff5f5; border:1px solid #f3b7c1; border-radius:6px; color:#cc3344; font-size:13px;"></div>
+      <div style="margin-top:10px; display:flex; gap:8px;">
+        <button id="masterSyncDownloadDeleteBtn" class="modalPrimaryBtn hidden" style="width:auto; background:#fff; color:#cc3344; border:1px solid #cc3344;">削除予定SKU一覧をCSVでダウンロード</button>
+      </div>
+      <div style="max-height: 35vh; overflow: auto; margin-top: 10px;">
+        <table id="masterSyncDeletePreviewTable" class="previewTable hidden">
+          <thead>
+            <tr>
+              <th>削除予定SKU（先頭50件のみ表示）</th>
+              <th>品番</th>
+              <th>商品名</th>
+              <th>ネット</th>
+              <th>オクテット</th>
+              <th>三好</th>
+            </tr>
+          </thead>
+          <tbody id="masterSyncDeletePreviewBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modalFooter">
+      <div id="masterSyncProgress" style="font-size:12px; color:#616e7c; margin-right:auto; white-space:pre-line;"></div>
+      <button id="masterSyncApplyBtn" class="modalPrimaryBtn" disabled>この内容で同期する</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
   // ▼▼▼ Supabaseプロジェクトの値 ▼▼▼
@@ -1075,7 +1119,7 @@
 
   function applyViewerRestrictions() {
     const writeOnlyEls = [
-      addSkuBtn, newProductBtn, matchBtn, csvBtn, ecBtn, bulkDeleteBtn,
+      addSkuBtn, newProductBtn, matchBtn, csvBtn, ecBtn, bulkDeleteBtn, masterSyncBtn,
       editProductBtn, deleteSkuBtn, stockAdjBox, transferBox
     ];
     writeOnlyEls.forEach((el) => {
@@ -2492,6 +2536,188 @@
     } else {
       bulkDeleteProgress.textContent = `完了: 成功 ${done}件 / 失敗 ${failed}件`;
       loadZeroStockGroups();
+    }
+  });
+
+  // ===== 在庫マスタ一括同期（仮データ→本番データの入れ替え） =====
+  const masterSyncBtn = document.getElementById("masterSyncBtn");
+  const masterSyncModalOverlay = document.getElementById("masterSyncModalOverlay");
+  const masterSyncModalClose = document.getElementById("masterSyncModalClose");
+  const masterSyncFileInput = document.getElementById("masterSyncFileInput");
+  const masterSyncSummary = document.getElementById("masterSyncSummary");
+  const masterSyncDeleteWarning = document.getElementById("masterSyncDeleteWarning");
+  const masterSyncDownloadDeleteBtn = document.getElementById("masterSyncDownloadDeleteBtn");
+  const masterSyncDeletePreviewTable = document.getElementById("masterSyncDeletePreviewTable");
+  const masterSyncDeletePreviewBody = document.getElementById("masterSyncDeletePreviewBody");
+  const masterSyncApplyBtn = document.getElementById("masterSyncApplyBtn");
+  const masterSyncProgress = document.getElementById("masterSyncProgress");
+
+  let masterSyncPlan = null; // { csvRows, insertCount, updateCount, unchangedCount, deleteRows }
+
+  masterSyncBtn.addEventListener("click", () => {
+    moreMenuPanel.classList.add("hidden");
+    masterSyncModalOverlay.classList.remove("hidden");
+    resetMasterSyncModal();
+  });
+  masterSyncModalClose.addEventListener("click", () => {
+    masterSyncModalOverlay.classList.add("hidden");
+  });
+
+  function resetMasterSyncModal() {
+    masterSyncFileInput.value = "";
+    masterSyncFileInput.disabled = false;
+    masterSyncSummary.textContent = "";
+    masterSyncDeleteWarning.classList.add("hidden");
+    masterSyncDeleteWarning.textContent = "";
+    masterSyncDownloadDeleteBtn.classList.add("hidden");
+    masterSyncDeletePreviewTable.classList.add("hidden");
+    masterSyncDeletePreviewBody.innerHTML = "";
+    masterSyncApplyBtn.disabled = true;
+    masterSyncProgress.textContent = "";
+    masterSyncPlan = null;
+  }
+
+  masterSyncFileInput.addEventListener("change", async () => {
+    const file = masterSyncFileInput.files[0];
+    if (!file) return;
+    masterSyncSummary.textContent = "解析中...(行数が多いため少し時間がかかります)";
+    masterSyncDeleteWarning.classList.add("hidden");
+    masterSyncDownloadDeleteBtn.classList.add("hidden");
+    masterSyncDeletePreviewTable.classList.add("hidden");
+    masterSyncApplyBtn.disabled = true;
+
+    const text = await file.text();
+    const rows = parseCsvText(text);
+    if (rows.length === 0) {
+      masterSyncSummary.textContent = "データ行が見つかりませんでした。";
+      return;
+    }
+
+    // ヘッダーなし、1行 = 「SKU,本店,オクテット,三好,津島」。津島は在庫君では管理しないため無視する。
+    // 同じSKUが複数回出てくる場合は、最後に出てきた行を採用する。
+    const csvMap = new Map(); // sku -> {net, octet, miyoshi}
+    let blankSkuRows = 0;
+    for (const row of rows) {
+      const sku = cleanText(row[0]);
+      if (!sku) { blankSkuRows++; continue; }
+      const toNum = (v) => {
+        const t = cleanText(v);
+        if (t === "") return 0;
+        const n = parseInt(t, 10);
+        return Number.isFinite(n) ? n : 0;
+      };
+      csvMap.set(sku, {
+        net: toNum(row[1]),
+        octet: toNum(row[2]),
+        miyoshi: toNum(row[3])
+      });
+    }
+
+    if (csvMap.size === 0) {
+      masterSyncSummary.textContent = "SKUが1件も見つかりませんでした。";
+      return;
+    }
+
+    // 現在の在庫君と比較して、新規追加・更新・変更なし・削除の件数を出す
+    const existingMap = new Map(allProducts.map(p => [p.sku, p]));
+    let insertCount = 0, updateCount = 0, unchangedCount = 0;
+    for (const [sku, v] of csvMap.entries()) {
+      const p = existingMap.get(sku);
+      if (!p) {
+        insertCount++;
+      } else if ((p.stock_net || 0) !== v.net || (p.stock_octet || 0) !== v.octet || (p.stock_miyoshi || 0) !== v.miyoshi) {
+        updateCount++;
+      } else {
+        unchangedCount++;
+      }
+    }
+    const deleteRows = allProducts.filter(p => !csvMap.has(p.sku));
+
+    masterSyncPlan = {
+      csvRows: [...csvMap.entries()].map(([sku, v]) => ({ sku, net: v.net, octet: v.octet, miyoshi: v.miyoshi })),
+      insertCount, updateCount, unchangedCount, deleteRows
+    };
+
+    renderMasterSyncPreview(blankSkuRows);
+  });
+
+  function renderMasterSyncPreview(blankSkuRows) {
+    const p = masterSyncPlan;
+    let summary = `CSV: ${p.csvRows.length}件のSKU / 新規追加予定: ${p.insertCount}件 / 更新予定: ${p.updateCount}件 / 変更なし: ${p.unchangedCount}件`;
+    if (blankSkuRows > 0) summary += `\nSKUが空欄の行 ${blankSkuRows}件は無視しました。`;
+    masterSyncSummary.textContent = summary;
+
+    if (p.deleteRows.length > 0) {
+      masterSyncDeleteWarning.classList.remove("hidden");
+      masterSyncDeleteWarning.textContent = `⚠️ ${p.deleteRows.length}件のSKUが在庫君から削除されます（在庫の有無に関わらず削除されます）。実行前に必ず下の一覧・ダウンロードで内容を確認してください。`;
+      masterSyncDownloadDeleteBtn.classList.remove("hidden");
+      masterSyncDeletePreviewTable.classList.remove("hidden");
+      masterSyncDeletePreviewBody.innerHTML = p.deleteRows.slice(0, 50).map(r => `
+        <tr class="rowError">
+          <td>${escapeHtml(r.sku)}</td>
+          <td>${escapeHtml(r.parent_code || "")}</td>
+          <td>${escapeHtml(r.product_name || "")}</td>
+          <td>${r.stock_net || 0}</td>
+          <td>${r.stock_octet || 0}</td>
+          <td>${r.stock_miyoshi || 0}</td>
+        </tr>
+      `).join("");
+    } else {
+      masterSyncDeleteWarning.classList.add("hidden");
+      masterSyncDownloadDeleteBtn.classList.add("hidden");
+      masterSyncDeletePreviewTable.classList.add("hidden");
+    }
+
+    masterSyncApplyBtn.disabled = false;
+  }
+
+  masterSyncDownloadDeleteBtn.addEventListener("click", () => {
+    if (!masterSyncPlan) return;
+    const headerRow = ["SKU", "品番", "商品名", "ネット", "オクテット", "三好"];
+    const lines = [headerRow.map(csvEscape).join(",")];
+    for (const r of masterSyncPlan.deleteRows) {
+      lines.push([
+        r.sku || "", r.parent_code || "", r.product_name || "",
+        r.stock_net || 0, r.stock_octet || 0, r.stock_miyoshi || 0
+      ].map(csvEscape).join(","));
+    }
+    const csvContent = "﻿" + lines.join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "在庫マスタ同期_削除予定一覧.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  masterSyncApplyBtn.addEventListener("click", async () => {
+    if (!masterSyncPlan) return;
+    const p = masterSyncPlan;
+    const msg = `以下の内容で在庫君の在庫を同期します。よろしいですか？\n\n新規追加: ${p.insertCount}件\n更新: ${p.updateCount}件\n削除: ${p.deleteRows.length}件（在庫の有無に関わらず削除されます）\n\nこの操作は元に戻せません。`;
+    if (!confirm(msg)) return;
+
+    masterSyncApplyBtn.disabled = true;
+    masterSyncFileInput.disabled = true;
+    masterSyncProgress.textContent = "同期中...(件数が多いため少し時間がかかります)";
+
+    const { data, error } = await client.rpc("sync_products_from_master", { p_rows: p.csvRows });
+
+    if (error) {
+      masterSyncProgress.textContent = "エラー: " + error.message;
+      masterSyncApplyBtn.disabled = false;
+      masterSyncFileInput.disabled = false;
+      return;
+    }
+
+    const result = Array.isArray(data) ? data[0] : data;
+    masterSyncProgress.textContent = `完了: 新規追加 ${result.inserted_count}件 / 更新 ${result.updated_count}件 / 削除 ${result.deleted_count}件`;
+
+    await loadProducts();
+    if (selectedSku && !allProducts.some(pr => pr.sku === selectedSku)) {
+      clearSelection();
     }
   });
 
