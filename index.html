@@ -2390,7 +2390,7 @@
   }
 
   function cleanText(s) {
-    return (s || "").replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, "").trim();
+    return (s || "").replace(/[\x00-\x08\x0b\x0c\x0e-\x1f﻿]/g, "").trim();
   }
 
   csvFileInput.addEventListener("change", async () => {
