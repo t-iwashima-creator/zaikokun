@@ -435,7 +435,7 @@
     border-collapse: collapse;
   }
   col.col-parent { width: 100px; }
-  col.col-sku { width: 130px; }
+  col.col-sku { width: 190px; }
   col.col-name { width: auto; }
   col.col-brand { width: 76px; }
   col.col-category { width: 76px; }
@@ -472,6 +472,13 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  /* SKUは省略せず、必要なら折り返して必ず全文表示する */
+  #tableWrap tbody td.col-sku {
+    white-space: normal;
+    word-break: break-all;
+    overflow: visible;
+    text-overflow: clip;
   }
   /* EC引当プレビュー用の列幅（SKU・商品名は省略されず見えるように） */
   #ecPreviewTable { table-layout: fixed; }
@@ -1412,7 +1419,7 @@
     tableBody.innerHTML = rows.map(r => `
       <tr data-sku="${escapeHtml(r.sku)}" class="${r.sku === selectedSku ? "selected" : ""}">
         <td class="${r.parent_code ? "" : "unmatched"}">${r.parent_code ? escapeHtml(r.parent_code) : "(未マッチ)"}</td>
-        <td>${escapeHtml(r.sku)}</td>
+        <td class="col-sku">${escapeHtml(r.sku)}</td>
         ${cell(r.product_name)}
         <td class="col-brand" title="${escapeHtml(r.brand || "")}">${escapeHtml(r.brand || "")}</td>
         <td class="col-category" title="${escapeHtml(r.item_category || "")}">${escapeHtml(r.item_category || "")}</td>
