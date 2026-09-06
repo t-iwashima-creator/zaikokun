@@ -1,3 +1,26 @@
+
+アプリが終了するか、このコンピュータがスリープ状態になると停止します。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Index · HTML
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -68,7 +91,7 @@
   }
   #historyLoadMoreBtn:hover:not(:disabled) { background: #f5f8ff; }
   #historyLoadMoreBtn:disabled { color: #9aa5b1; border-color: #cbd2d9; cursor: not-allowed; }
-
+ 
   /* その他メニュー（使用頻度の低い機能をまとめる） */
   #moreMenuWrap { position: relative; }
   #moreMenuBtn {
@@ -106,7 +129,7 @@
   }
   #moreMenuPanel button:hover { background: #f5f6f8; }
   #moreMenuPanel button + button { border-top: 1px solid #eef1f4; }
-
+ 
   /* CSV import modal */
   #csvModalOverlay {
     position: fixed;
@@ -164,7 +187,7 @@
   #csvApplyBtn:hover { background: #1a5fc7; }
   #csvApplyBtn:disabled { background: #9aa5b1; cursor: not-allowed; }
   #csvProgress { font-size: 12px; color: #616e7c; margin-top: 8px; white-space: pre-line; }
-
+ 
   /* generic modal (SKU追加などで使用) */
   .modalOverlay {
     position: fixed;
@@ -252,7 +275,7 @@
   .previewTable td { padding: 6px 8px; border-top: 1px solid #eef1f4; white-space: nowrap; }
   .previewTable tr.rowError td { color: #cc3344; background: #fff5f5; }
   .previewTable tr.rowOk td { background: #f4fbf6; }
-
+ 
   /* login screen */
   #loginScreen {
     display: flex;
@@ -288,7 +311,7 @@
   }
   #loginBox button:hover { background: #1a5fc7; }
   #loginError { color: #cc3344; font-size: 13px; margin-top: -4px; margin-bottom: 12px; min-height: 16px; }
-
+ 
   /* main screen */
   main { padding: 20px 24px; }
   #controls { margin-bottom: 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding-right: 280px; }
@@ -319,7 +342,7 @@
   }
   #costMissingLabel input { width: auto; }
   #rowCount { color: #616e7c; font-size: 13px; }
-
+ 
   /* two-column layout: table + side panel */
   #layout {
     display: flex;
@@ -428,7 +451,7 @@
   .panelMsg.ok { color: #1a7f37; }
   .panelMsg.err { color: #cc3344; }
   .panelNote { font-size: 11px; color: #9aa5b1; margin-top: 6px; line-height: 1.5; }
-
+ 
   #tableWrap table {
     width: 100%;
     table-layout: fixed;
@@ -440,7 +463,7 @@
   col.col-brand { width: 76px; }
   col.col-category { width: 76px; }
   col.col-stock { width: 76px; }
-
+ 
   #tableWrap thead th {
     background: #eef1f4;
     text-align: left;
@@ -522,14 +545,14 @@
   .num { text-align: right; font-variant-numeric: tabular-nums; background: #f8faff; }
   .zero { color: #b0b7c3; }
   .unmatched { color: #cc3344; }
-
+ 
   #loadingMsg, #errorMsg { padding: 40px; text-align: center; color: #616e7c; }
   #errorMsg { color: #cc3344; }
   .hidden { display: none !important; }
 </style>
 </head>
 <body>
-
+ 
 <div id="loginScreen">
   <div id="loginBox">
     <h2>在庫君 ログイン</h2>
@@ -539,7 +562,7 @@
     <button id="loginBtn">ログイン</button>
   </div>
 </div>
-
+ 
 <div id="appScreen" class="hidden">
   <header>
     <h1>在庫君 - 在庫照会</h1>
@@ -579,7 +602,7 @@
     </div>
     <div id="loadingMsg">読み込み中...</div>
     <div id="errorMsg" class="hidden"></div>
-
+ 
     <div id="layout" class="hidden">
       <div id="tableWrap">
         <table>
@@ -611,7 +634,7 @@
           <tbody id="tableBody"></tbody>
         </table>
       </div>
-
+ 
       <div id="sidePanel">
         <div class="panelBox">
           <h3>選択中の商品</h3>
@@ -622,7 +645,7 @@
           </div>
           <div id="deleteMsg" class="panelMsg"></div>
         </div>
-
+ 
         <div class="panelBox hidden" id="completeInfoBox">
           <h3>商品情報の修正</h3>
           <label>品番</label>
@@ -636,7 +659,7 @@
           <button id="completeSubmitBtn">保存</button>
           <div id="completeMsg" class="panelMsg"></div>
         </div>
-
+ 
         <div class="panelBox" id="stockAdjBox">
           <h3>在庫増減</h3>
           <label>拠点</label>
@@ -652,7 +675,7 @@
           <button id="adjSubmitBtn">在庫を反映</button>
           <div id="adjMsg" class="panelMsg"></div>
         </div>
-
+ 
         <div class="panelBox" id="transferBox">
           <h3>店舗間移動</h3>
           <label>移動元</label>
@@ -674,7 +697,7 @@
           <button id="transSubmitBtn">移動を反映</button>
           <div id="transMsg" class="panelMsg"></div>
         </div>
-
+ 
         <div class="panelBox hidden" id="costRow">
           <h3>原価</h3>
           <label style="margin-top:0;">原価（円・品番単位）</label>
@@ -686,7 +709,7 @@
     </div>
   </main>
 </div>
-
+ 
 <div id="csvModalOverlay" class="hidden">
   <div id="csvModal">
     <div id="csvModalHeader">
@@ -723,7 +746,7 @@
     </div>
   </div>
 </div>
-
+ 
 <div id="addSkuModalOverlay" class="modalOverlay hidden">
   <div class="modalBox">
     <div class="modalHeader">
@@ -763,7 +786,7 @@
     </div>
   </div>
 </div>
-
+ 
 <div id="matchModalOverlay" class="modalOverlay hidden">
   <div class="modalBox modalBoxWide">
     <div class="modalHeader">
@@ -800,7 +823,7 @@
     </div>
   </div>
 </div>
-
+ 
 <div id="historyModalOverlay" class="modalOverlay hidden">
   <div class="modalBox modalBoxWide">
     <div class="modalHeader">
@@ -864,7 +887,7 @@
     </div>
   </div>
 </div>
-
+ 
 <div id="newProductModalOverlay" class="modalOverlay hidden">
   <div class="modalBox modalBoxWide">
     <div class="modalHeader">
@@ -899,7 +922,7 @@
     </div>
   </div>
 </div>
-
+ 
 <div id="ecModalOverlay" class="modalOverlay hidden">
   <div class="modalBox modalBoxWide">
     <div class="modalHeader">
@@ -950,7 +973,7 @@
     </div>
   </div>
 </div>
-
+ 
 <div id="bulkDeleteModalOverlay" class="modalOverlay hidden">
   <div class="modalBox modalBoxWide">
     <div class="modalHeader">
@@ -989,7 +1012,7 @@
     </div>
   </div>
 </div>
-
+ 
 <div id="masterSyncModalOverlay" class="modalOverlay hidden">
   <div class="modalBox modalBoxWide">
     <div class="modalHeader">
@@ -1032,7 +1055,7 @@
     </div>
   </div>
 </div>
-
+ 
 <div id="brandItemModalOverlay" class="modalOverlay hidden">
   <div class="modalBox modalBoxWide">
     <div class="modalHeader">
@@ -1070,7 +1093,7 @@
     </div>
   </div>
 </div>
-
+ 
 <div id="costImportModalOverlay" class="modalOverlay hidden">
   <div class="modalBox modalBoxWide">
     <div class="modalHeader">
@@ -1105,7 +1128,7 @@
     </div>
   </div>
 </div>
-
+ 
 <div id="costValueModalOverlay" class="modalOverlay hidden">
   <div class="modalBox">
     <div class="modalHeader">
@@ -1127,17 +1150,17 @@
     </div>
   </div>
 </div>
-
+ 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
   // ▼▼▼ Supabaseプロジェクトの値 ▼▼▼
   const SUPABASE_URL = "https://fyzgtfdcehwtuhzkgbbq.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_3nMdUCv75vhhsn3ZNpesRw_AKxJSzz3";
   // ▲▲▲ ここまで ▲▲▲
-
+ 
   const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const LOCATION_LABEL = { net: "ネット", octet: "オクテット", miyoshi: "三好" };
-
+ 
   const loginScreen = document.getElementById("loginScreen");
   const appScreen = document.getElementById("appScreen");
   const loginBtn = document.getElementById("loginBtn");
@@ -1155,14 +1178,14 @@
   const errorMsg = document.getElementById("errorMsg");
   const rowCount = document.getElementById("rowCount");
   const selectedSkuBox = document.getElementById("selectedSkuBox");
-
+ 
   const adjLocation = document.getElementById("adjLocation");
   const adjAmount = document.getElementById("adjAmount");
   const adjReason = document.getElementById("adjReason");
   const adjSubmitBtn = document.getElementById("adjSubmitBtn");
   const adjMsg = document.getElementById("adjMsg");
   const stockAdjBox = document.getElementById("stockAdjBox");
-
+ 
   const transFrom = document.getElementById("transFrom");
   const transTo = document.getElementById("transTo");
   const transAmount = document.getElementById("transAmount");
@@ -1170,11 +1193,11 @@
   const transSubmitBtn = document.getElementById("transSubmitBtn");
   const transMsg = document.getElementById("transMsg");
   const transferBox = document.getElementById("transferBox");
-
+ 
   const editProductBtn = document.getElementById("editProductBtn");
   const deleteSkuBtn = document.getElementById("deleteSkuBtn");
   const deleteMsg = document.getElementById("deleteMsg");
-
+ 
   const costRow = document.getElementById("costRow");
   const costValueBtn = document.getElementById("costValueBtn");
   const costValueModalOverlay = document.getElementById("costValueModalOverlay");
@@ -1186,7 +1209,7 @@
   const costInput = document.getElementById("costInput");
   const costSaveBtn = document.getElementById("costSaveBtn");
   const costMsg = document.getElementById("costMsg");
-
+ 
   const completeInfoBox = document.getElementById("completeInfoBox");
   const completeParentCode = document.getElementById("completeParentCode");
   const completeProductName = document.getElementById("completeProductName");
@@ -1194,7 +1217,7 @@
   const completeItemCategory = document.getElementById("completeItemCategory");
   const completeSubmitBtn = document.getElementById("completeSubmitBtn");
   const completeMsg = document.getElementById("completeMsg");
-
+ 
   const addSkuBtn = document.getElementById("addSkuBtn");
   const addSkuModalOverlay = document.getElementById("addSkuModalOverlay");
   const addSkuModalClose = document.getElementById("addSkuModalClose");
@@ -1208,7 +1231,7 @@
   const newStockMiyoshi = document.getElementById("newStockMiyoshi");
   const addSkuSubmitBtn = document.getElementById("addSkuSubmitBtn");
   const addSkuMsg = document.getElementById("addSkuMsg");
-
+ 
   const matchBtn = document.getElementById("matchBtn");
   const matchModalOverlay = document.getElementById("matchModalOverlay");
   const matchModalClose = document.getElementById("matchModalClose");
@@ -1218,7 +1241,7 @@
   const matchPreviewBody = document.getElementById("matchPreviewBody");
   const matchApplyBtn = document.getElementById("matchApplyBtn");
   const matchProgress = document.getElementById("matchProgress");
-
+ 
   const newProductBtn = document.getElementById("newProductBtn");
   const newProductModalOverlay = document.getElementById("newProductModalOverlay");
   const newProductModalClose = document.getElementById("newProductModalClose");
@@ -1228,7 +1251,7 @@
   const newProductPreviewBody = document.getElementById("newProductPreviewBody");
   const newProductApplyBtn = document.getElementById("newProductApplyBtn");
   const newProductProgress = document.getElementById("newProductProgress");
-
+ 
   const ecBtn = document.getElementById("ecBtn");
   const ecModalOverlay = document.getElementById("ecModalOverlay");
   const ecModalClose = document.getElementById("ecModalClose");
@@ -1239,7 +1262,7 @@
   const ecApplyBtn = document.getElementById("ecApplyBtn");
   const ecProgress = document.getElementById("ecProgress");
   const ecPrintBtn = document.getElementById("ecPrintBtn");
-
+ 
   const historyModalOverlay = document.getElementById("historyModalOverlay");
   const historyModalClose = document.getElementById("historyModalClose");
   const historySkuInput = document.getElementById("historySkuInput");
@@ -1251,23 +1274,23 @@
   const historyPreviewTable = document.getElementById("historyPreviewTable");
   const historyPreviewBody = document.getElementById("historyPreviewBody");
   const historyLoadMoreBtn = document.getElementById("historyLoadMoreBtn");
-
+ 
   let allProducts = [];
   let selectedSku = null;
-
+ 
   function isIncomplete(p) {
     return !p.parent_code || !p.product_name || !p.brand || !p.item_category;
   }
-
+ 
   function isUnmatched(p) {
     return !p.parent_code;
   }
-
+ 
   // 閲覧専用アカウント（書き込み系のボタン・パネルを非表示にする）
   // ※ 表示上の制御であり、実際の書き込み禁止はDB側（RPC関数）で保証している
   const VIEWER_ONLY_EMAILS = ["miyoshi@deradera.com", "octet@deradera.com"];
   let isViewerOnly = false;
-
+ 
   function applyViewerRestrictions() {
     const writeOnlyEls = [
       addSkuBtn, newProductBtn, matchBtn, csvBtn, ecBtn, bulkDeleteBtn, masterSyncBtn, brandItemBtn, costImportBtn, costValueBtn,
@@ -1277,13 +1300,13 @@
       if (!el) return;
       el.classList.toggle("hidden", isViewerOnly);
     });
-
+ 
     // 原価未設定のみ表示チェックボックスも、原価に関連するので閲覧専用アカウントには見せない
     if (costMissingLabel) {
       costMissingLabel.classList.toggle("hidden", isViewerOnly);
     }
   }
-
+ 
   async function checkSession() {
     const { data: { session } } = await client.auth.getSession();
     if (session) {
@@ -1292,24 +1315,24 @@
       showLogin();
     }
   }
-
+ 
   function showLogin() {
     loginScreen.classList.remove("hidden");
     appScreen.classList.add("hidden");
   }
-
+ 
   async function showApp() {
     loginScreen.classList.add("hidden");
     appScreen.classList.remove("hidden");
-
+ 
     const { data: { user } } = await client.auth.getUser();
     const email = ((user && user.email) || "").toLowerCase();
     isViewerOnly = VIEWER_ONLY_EMAILS.includes(email);
     applyViewerRestrictions();
-
+ 
     loadProducts();
   }
-
+ 
   loginBtn.addEventListener("click", async () => {
     loginError.textContent = "";
     const email = emailInput.value.trim();
@@ -1329,21 +1352,21 @@
     }
     showApp();
   });
-
+ 
   passwordInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") loginBtn.click();
   });
-
+ 
   logoutBtn.addEventListener("click", async () => {
     await client.auth.signOut();
     showLogin();
   });
-
+ 
   async function loadProducts() {
     loadingMsg.classList.remove("hidden");
     errorMsg.classList.add("hidden");
     layout.classList.add("hidden");
-
+ 
     let all = [];
     let from = 0;
     const pageSize = 1000;
@@ -1363,16 +1386,16 @@
       if (data.length < pageSize) break;
       from += pageSize;
     }
-
+ 
     allProducts = all;
     loadingMsg.classList.add("hidden");
     layout.classList.remove("hidden");
     renderTable(currentFilteredRows());
   }
-
+ 
   // 原価が未設定(null)のSKU一覧(値そのものは取得しない・閲覧専用アカウントには常に空)
   let costMissingSkuSet = null;
-
+ 
   async function loadCostMissingSkus() {
     if (isViewerOnly) {
       costMissingSkuSet = new Set();
@@ -1398,7 +1421,7 @@
     }
     costMissingSkuSet = new Set(all.map(r => r.sku));
   }
-
+ 
   function cell(v, isNum) {
     if (isNum) {
       const n = Number(v) || 0;
@@ -1407,14 +1430,14 @@
     const text = v ? escapeHtml(v) : "";
     return `<td title="${text}">${text}</td>`;
   }
-
+ 
   function escapeHtml(s) {
     return String(s)
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
   }
-
+ 
   function renderTable(rows) {
     tableBody.innerHTML = rows.map(r => `
       <tr data-sku="${escapeHtml(r.sku)}" class="${r.sku === selectedSku ? "selected" : ""}">
@@ -1429,12 +1452,12 @@
       </tr>
     `).join("");
     rowCount.textContent = `${rows.length}件`;
-
+ 
     tableBody.querySelectorAll("tr").forEach(tr => {
       tr.addEventListener("click", () => selectSku(tr.dataset.sku));
     });
   }
-
+ 
   async function selectSku(sku) {
     selectedSku = sku;
     const p = allProducts.find(r => r.sku === sku);
@@ -1445,12 +1468,12 @@
         ${escapeHtml(p.product_name || "(商品名未設定)")}<br>
         ネット:${p.stock_net} / オクテット:${p.stock_octet} / 三好:${p.stock_miyoshi}
       `;
-
+ 
       const allZero = (p.stock_net || 0) === 0 && (p.stock_octet || 0) === 0 && (p.stock_miyoshi || 0) === 0;
       deleteSkuBtn.disabled = !allZero;
       deleteSkuBtn.title = allZero ? "" : "在庫が0でないため削除できません";
       editProductBtn.disabled = false;
-
+ 
       // 品番・商品名・ブランド・アイテムは、既に入力済みでも「修正」ボタンから
       // いつでも直せるように、選択のたびに現在値を編集欄へ反映しておく
       completeParentCode.value = p.parent_code || "";
@@ -1458,7 +1481,7 @@
       completeBrand.value = p.brand || "";
       completeItemCategory.value = p.item_category || "";
       completeInfoBox.classList.add("hidden");
-
+ 
       // 原価は一覧には出さず、選択のたびに専用RPCで取得する（閲覧専用アカウントには渡らない）
       if (!isViewerOnly) {
         costRow.classList.remove("hidden");
@@ -1478,12 +1501,12 @@
     deleteMsg.textContent = "";
     completeMsg.textContent = "";
   }
-
+ 
   editProductBtn.addEventListener("click", () => {
     if (!selectedSku) return;
     completeInfoBox.classList.toggle("hidden");
   });
-
+ 
   function clearSelection() {
     selectedSku = null;
     selectedSkuBox.classList.add("empty");
@@ -1496,7 +1519,7 @@
     costInput.value = "";
     costMsg.textContent = "";
   }
-
+ 
   costSaveBtn.addEventListener("click", async () => {
     costMsg.textContent = "";
     costMsg.className = "panelMsg";
@@ -1536,22 +1559,22 @@
     costMsg.textContent = "保存しました（同じ品番の全SKUに反映されました）";
     costMsg.className = "panelMsg ok";
   });
-
+ 
   function formatYen(n) {
     return "¥" + Math.round(n).toLocaleString("ja-JP");
   }
-
+ 
   costValueBtn.addEventListener("click", async () => {
     moreMenuPanel.classList.add("hidden");
     costValueBtn.disabled = true;
     const originalText = costValueBtn.textContent;
     costValueBtn.textContent = "計算中...";
-
+ 
     const { data, error } = await client.rpc("get_inventory_value");
-
+ 
     costValueBtn.disabled = false;
     costValueBtn.textContent = originalText;
-
+ 
     if (error) {
       alert("在庫評価額の取得に失敗しました: " + error.message);
       return;
@@ -1561,26 +1584,26 @@
       alert("在庫評価額の取得に失敗しました");
       return;
     }
-
+ 
     costValueAll.textContent = formatYen(row.total_value);
     costValueNet.textContent = formatYen(row.net_value);
     costValueOctet.textContent = formatYen(row.octet_value);
     costValueMiyoshi.textContent = formatYen(row.miyoshi_value);
-
+ 
     costValueModalOverlay.classList.remove("hidden");
   });
-
+ 
   costValueModalClose.addEventListener("click", () => {
     costValueModalOverlay.classList.add("hidden");
   });
-
+ 
   function updateLocalStock(sku, updates) {
     const p = allProducts.find(r => r.sku === sku);
     if (p) Object.assign(p, updates);
     renderTable(currentFilteredRows());
     if (selectedSku === sku) selectSku(sku);
   }
-
+ 
   function currentFilteredRows() {
     const q = searchInput.value.trim().toLowerCase();
     let rows = allProducts;
@@ -1598,15 +1621,15 @@
       (r.brand || "").toLowerCase().includes(q)
     );
   }
-
+ 
   searchInput.addEventListener("input", () => {
     renderTable(currentFilteredRows());
   });
-
+ 
   incompleteOnlyCheckbox.addEventListener("change", () => {
     renderTable(currentFilteredRows());
   });
-
+ 
   if (costMissingCheckbox) {
     costMissingCheckbox.addEventListener("change", async () => {
       if (costMissingCheckbox.checked && costMissingSkuSet === null) {
@@ -1617,7 +1640,7 @@
       renderTable(currentFilteredRows());
     });
   }
-
+ 
   adjSubmitBtn.addEventListener("click", async () => {
     adjMsg.textContent = "";
     adjMsg.className = "panelMsg";
@@ -1658,7 +1681,7 @@
     adjAmount.value = "";
     adjReason.value = "";
   });
-
+ 
   transSubmitBtn.addEventListener("click", async () => {
     transMsg.textContent = "";
     transMsg.className = "panelMsg";
@@ -1705,7 +1728,7 @@
     transAmount.value = "";
     transReason.value = "";
   });
-
+ 
   // ===== SKU追加 =====
   addSkuBtn.addEventListener("click", () => {
     addSkuModalOverlay.classList.remove("hidden");
@@ -1720,11 +1743,11 @@
     addSkuMsg.textContent = "";
     addSkuMsg.className = "modalMsg";
   });
-
+ 
   addSkuModalClose.addEventListener("click", () => {
     addSkuModalOverlay.classList.add("hidden");
   });
-
+ 
   addSkuSubmitBtn.addEventListener("click", async () => {
     addSkuMsg.textContent = "";
     addSkuMsg.className = "modalMsg";
@@ -1764,7 +1787,7 @@
     addSkuModalOverlay.classList.add("hidden");
     selectSku(sku);
   });
-
+ 
   // ===== SKU削除 =====
   deleteSkuBtn.addEventListener("click", async () => {
     if (!selectedSku) return;
@@ -1773,7 +1796,7 @@
     const allZero = (p.stock_net || 0) === 0 && (p.stock_octet || 0) === 0 && (p.stock_miyoshi || 0) === 0;
     if (!allZero) return;
     if (!confirm(`SKU「${selectedSku}」を削除します。よろしいですか？（この操作は取り消せません）`)) return;
-
+ 
     deleteSkuBtn.disabled = true;
     deleteMsg.textContent = "";
     deleteMsg.className = "panelMsg";
@@ -1788,7 +1811,7 @@
     clearSelection();
     renderTable(currentFilteredRows());
   });
-
+ 
   // ===== 商品情報の修正 =====
   completeSubmitBtn.addEventListener("click", async () => {
     completeMsg.textContent = "";
@@ -1822,11 +1845,11 @@
     completeMsg.className = "panelMsg ok";
     completeInfoBox.classList.add("hidden");
   });
-
+ 
   // ===== ccGoods突合 =====
   let matchPlan = []; // [{sku, parent, name, brand, currentItemCategory, valid}]
   let matchMasterInfo = { total: 0, dupCount: 0, blankCount: 0 };
-
+ 
   matchBtn.addEventListener("click", () => {
     matchModalOverlay.classList.remove("hidden");
     resetMatchModal();
@@ -1834,7 +1857,7 @@
   matchModalClose.addEventListener("click", () => {
     matchModalOverlay.classList.add("hidden");
   });
-
+ 
   function resetMatchModal() {
     matchFileInput.value = "";
     matchFileInput.disabled = false;
@@ -1845,7 +1868,7 @@
     matchProgress.textContent = "";
     matchPlan = [];
   }
-
+ 
   // SKUをハイフン区切りで後ろから1階層ずつ削りながら、マスタに存在する最長の一致を探す
   // （match_parent_code.py の find_parent と同じロジック）
   function findParentInMaster(sku, masterMap) {
@@ -1856,14 +1879,14 @@
     }
     return null;
   }
-
+ 
   matchFileInput.addEventListener("change", async () => {
     const file = matchFileInput.files[0];
     if (!file) return;
     matchSummary.textContent = "解析中...(ファイルが大きいため少し時間がかかります)";
     matchPreviewTable.classList.add("hidden");
     matchApplyBtn.disabled = true;
-
+ 
     let text;
     try {
       const buffer = await file.arrayBuffer();
@@ -1873,23 +1896,23 @@
       matchSummary.textContent = "ファイルの読み込みに失敗しました: " + e.message;
       return;
     }
-
+ 
     const rows = parseCsvText(text);
     if (rows.length < 2) {
       matchSummary.textContent = "データ行が見つかりませんでした。";
       return;
     }
-
+ 
     // 列名ベースで参照する（列の並び順が変わっても壊れないように）
     const header = rows[0].map(cleanText);
     const codeIdx = header.findIndex(h => h === "商品番号");
     const nameIdx = header.findIndex(h => h === "商品名");
-
+ 
     if (codeIdx === -1 || nameIdx === -1) {
       matchSummary.textContent = "ヘッダー行に「商品番号」または「商品名」の列が見つかりません。ファイル形式を確認してください。";
       return;
     }
-
+ 
     // マスタを構築。商品番号が空欄の行は除外、重複はマスタ重複チェックとして先勝ちで処理する
     const masterMap = new Map(); // code -> { name }
     let dupCount = 0;
@@ -1902,7 +1925,7 @@
       const name = cleanText(r[nameIdx]);
       masterMap.set(code, { name });
     }
-
+ 
     // ブランド・アイテムはccGoods側の表記が既存の表記ルールと食い違うことがあるため対象外。
     // 品番・商品名だけを反映し、ブランド・アイテムは既存値のまま変更しない。
     const targets = allProducts.filter(isUnmatched);
@@ -1921,12 +1944,12 @@
         valid: true
       };
     });
-
+ 
     matchPlan = plan;
     matchMasterInfo = { total: masterMap.size, dupCount, blankCount };
     renderMatchPreview();
   });
-
+ 
   function renderMatchPreview() {
     const validCount = matchPlan.filter(p => p.valid).length;
     const totalTargets = matchPlan.length;
@@ -1935,7 +1958,7 @@
     if (matchMasterInfo.blankCount > 0) summary += `、商品番号が空欄の行${matchMasterInfo.blankCount}件は除外`;
     summary += "）";
     matchSummary.textContent = summary;
-
+ 
     matchPreviewTable.classList.remove("hidden");
     matchPreviewBody.innerHTML = matchPlan.map(p => `
       <tr class="${p.valid ? "rowOk" : "rowError"}">
@@ -1948,7 +1971,7 @@
     `).join("");
     matchApplyBtn.disabled = validCount === 0;
   }
-
+ 
   matchApplyBtn.addEventListener("click", async () => {
     const targets = matchPlan.filter(p => p.valid);
     if (targets.length === 0) return;
@@ -1976,7 +1999,7 @@
     matchFileInput.disabled = false;
     renderTable(currentFilteredRows());
     if (selectedSku) selectSku(selectedSku);
-
+ 
     if (failed === 0) {
       matchModalOverlay.classList.add("hidden");
       resetMatchModal();
@@ -1985,10 +2008,10 @@
       renderMatchPreview();
     }
   });
-
+ 
   // ===== 新商品登録（zaiko.csv取込） =====
   let newProductPlan = []; // [{sku, stockNet, status: "new" | "duplicate" | "invalid"}]
-
+ 
   newProductBtn.addEventListener("click", () => {
     newProductModalOverlay.classList.remove("hidden");
     resetNewProductModal();
@@ -1996,7 +2019,7 @@
   newProductModalClose.addEventListener("click", () => {
     newProductModalOverlay.classList.add("hidden");
   });
-
+ 
   function resetNewProductModal() {
     newProductFileInput.value = "";
     newProductFileInput.disabled = false;
@@ -2007,14 +2030,14 @@
     newProductProgress.textContent = "";
     newProductPlan = [];
   }
-
+ 
   newProductFileInput.addEventListener("change", async () => {
     const file = newProductFileInput.files[0];
     if (!file) return;
     newProductSummary.textContent = "解析中...";
     newProductPreviewTable.classList.add("hidden");
     newProductApplyBtn.disabled = true;
-
+ 
     let text;
     try {
       const buffer = await file.arrayBuffer();
@@ -2023,23 +2046,23 @@
       newProductSummary.textContent = "ファイルの読み込みに失敗しました: " + e.message;
       return;
     }
-
+ 
     const rows = parseCsvText(text);
     if (rows.length < 2) {
       newProductSummary.textContent = "データ行が見つかりませんでした。";
       return;
     }
-
+ 
     // 列名ベースで参照する
     const header = rows[0].map(cleanText);
     const skuIdx = header.findIndex(h => h === "SKUコード");
     const qtyIdx = header.findIndex(h => h === "在庫数量");
-
+ 
     if (skuIdx === -1 || qtyIdx === -1) {
       newProductSummary.textContent = "ヘッダー行に「SKUコード」または「在庫数量」の列が見つかりません。ファイル形式を確認してください。";
       return;
     }
-
+ 
     const existingSkuSet = new Set(allProducts.map(p => p.sku));
     const seenInFile = new Set();
     const plan = [];
@@ -2049,7 +2072,7 @@
       if (!sku) continue;
       const qtyRaw = cleanText(r[qtyIdx]);
       const qty = qtyRaw === "" ? 0 : parseInt(qtyRaw, 10);
-
+ 
       let status = "new";
       if (existingSkuSet.has(sku)) {
         status = "duplicate"; // 既に在庫君に登録済み
@@ -2059,14 +2082,14 @@
         status = "invalid"; // 数量が数値でない
       }
       seenInFile.add(sku);
-
+ 
       plan.push({ sku, stockNet: isNaN(qty) ? 0 : qty, status });
     }
-
+ 
     newProductPlan = plan;
     renderNewProductPreview();
   });
-
+ 
   function renderNewProductPreview() {
     const newCount = newProductPlan.filter(p => p.status === "new").length;
     const dupCount = newProductPlan.filter(p => p.status === "duplicate").length;
@@ -2082,7 +2105,7 @@
     `).join("");
     newProductApplyBtn.disabled = newCount === 0;
   }
-
+ 
   newProductApplyBtn.addEventListener("click", async () => {
     const targets = newProductPlan.filter(p => p.status === "new");
     if (targets.length === 0) return;
@@ -2112,7 +2135,7 @@
     allProducts.sort((a, b) => (a.sku || "").localeCompare(b.sku || ""));
     newProductFileInput.disabled = false;
     renderTable(currentFilteredRows());
-
+ 
     if (failed === 0) {
       newProductModalOverlay.classList.add("hidden");
       resetNewProductModal();
@@ -2121,14 +2144,14 @@
       renderNewProductPreview();
     }
   });
-
+ 
   // ===== EC引当 =====
   // 本店（ネット）→三好→オクテットの優先順で引き当てる
   const EC_ALLOCATION_PRIORITY = ["net", "miyoshi", "octet"];
-
+ 
   let ecPlan = []; // [{sku, productName, needed, allocations:{net,miyoshi,octet}, shortage, found}]
   let ecSkippedRows = 0;
-
+ 
   ecBtn.addEventListener("click", () => {
     ecModalOverlay.classList.remove("hidden");
     resetEcModal();
@@ -2136,7 +2159,7 @@
   ecModalClose.addEventListener("click", () => {
     ecModalOverlay.classList.add("hidden");
   });
-
+ 
   function resetEcModal() {
     ecFileInput.value = "";
     ecFileInput.disabled = false;
@@ -2149,21 +2172,21 @@
     ecPlan = [];
     ecSkippedRows = 0;
   }
-
+ 
   ecFileInput.addEventListener("change", async () => {
     const file = ecFileInput.files[0];
     if (!file) return;
     ecSummary.textContent = "解析中...";
     ecPreviewTable.classList.add("hidden");
     ecApplyBtn.disabled = true;
-
+ 
     const text = await file.text();
     const rows = parseCsvText(text);
     if (rows.length < 1) {
       ecSummary.textContent = "データ行が見つかりませんでした。";
       return;
     }
-
+ 
     // ヘッダーなし、1行 = 「SKU,数量」の形式。
     // 念のため、1列目が「SKU」というヘッダーっぽい行が先頭にあればスキップする。
     const skuCounts = new Map();
@@ -2179,22 +2202,22 @@
       }
       skuCounts.set(sku, (skuCounts.get(sku) || 0) + qty);
     }
-
+ 
     if (skuCounts.size === 0) {
       ecSummary.textContent = "SKUが1件も見つかりませんでした。";
       return;
     }
-
+ 
     ecPlan = buildEcAllocationPlan(skuCounts);
     renderEcPreview();
   });
-
+ 
   function buildEcAllocationPlan(skuCounts) {
     const plan = [];
     for (const [sku, needed] of skuCounts.entries()) {
       const p = allProducts.find(r => r.sku === sku);
       if (!p) {
-        plan.push({ sku, productName: null, needed, allocations: { net: 0, miyoshi: 0, octet: 0 }, shortage: needed, found: false });
+        plan.push({ sku, productName: null, parentCode: null, needed, allocations: { net: 0, miyoshi: 0, octet: 0 }, shortage: needed, found: false });
         continue;
       }
       // 同じSKUがCSV内に複数回出てきても在庫を使い切らないよう、現在庫からその都度差し引きながら計算する
@@ -2209,18 +2232,18 @@
           remaining -= take;
         }
       }
-      plan.push({ sku, productName: p.product_name, needed, allocations, shortage: remaining, found: true });
+      plan.push({ sku, productName: p.product_name, parentCode: p.parent_code || null, needed, allocations, shortage: remaining, found: true });
     }
     plan.sort((a, b) => a.sku.localeCompare(b.sku));
     return plan;
   }
-
+ 
   function ecStatusLabel(row) {
     if (!row.found) return "SKUが見つかりません";
     if (row.shortage > 0) return `欠品（${row.shortage}個不足）`;
     return "充足";
   }
-
+ 
   function renderEcPreview() {
     const shortageCount = ecPlan.filter(r => r.shortage > 0).length;
     const notFoundCount = ecPlan.filter(r => !r.found).length;
@@ -2242,20 +2265,32 @@
     ecApplyBtn.disabled = !anyAllocation;
     ecPrintBtn.disabled = ecPlan.length === 0;
   }
-
+ 
+  // 印刷用の並び順：第一優先＝引当元（本店→オクテット→三好→SKUなし/引当なし）、第二優先＝品番
+  function ecPrintGroupKey(r) {
+    if (r.allocations.net > 0) return 0;
+    if (r.allocations.octet > 0) return 1;
+    if (r.allocations.miyoshi > 0) return 2;
+    return 3;
+  }
+ 
   ecPrintBtn.addEventListener("click", () => {
     if (ecPlan.length === 0) return;
     const now = new Date();
     const pad = (n) => String(n).padStart(2, "0");
     const dateStr = `${now.getFullYear()}/${pad(now.getMonth() + 1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
-    const rowsHtml = ecPlan.map(r => `
+    const printRows = [...ecPlan].sort((a, b) => {
+      const ga = ecPrintGroupKey(a), gb = ecPrintGroupKey(b);
+      if (ga !== gb) return ga - gb;
+      return (a.parentCode || "").localeCompare(b.parentCode || "");
+    });
+    const rowsHtml = printRows.map(r => `
       <tr>
         <td>${escapeHtml(r.sku)}</td>
         <td>${escapeHtml(r.productName || "")}</td>
-        <td class="num">${r.needed}</td>
         <td class="num">${r.allocations.net || ""}</td>
-        <td class="num">${r.allocations.miyoshi || ""}</td>
         <td class="num">${r.allocations.octet || ""}</td>
+        <td class="num">${r.allocations.miyoshi || ""}</td>
         <td>${escapeHtml(ecStatusLabel(r))}</td>
       </tr>
     `).join("");
@@ -2277,9 +2312,9 @@
 </style>
 </head><body>
 <h2>EC引当（オンライン注文の在庫引当）</h2>
-<div class="meta">出力日時: ${escapeHtml(dateStr)}　/　優先順: 本店 → 三好 → オクテット</div>
+<div class="meta">出力日時: ${escapeHtml(dateStr)}　/　在庫引当の優先順: 本店 → 三好 → オクテット　/　並び順: 本店→オクテット→三好→SKUなしの順、品番順</div>
 <table>
-  <thead><tr><th>SKU</th><th>商品名</th><th>必要数</th><th>本店</th><th>三好</th><th>オクテット</th><th>状態</th></tr></thead>
+  <thead><tr><th>SKU</th><th>商品名</th><th>本店</th><th>オクテット</th><th>三好</th><th>状態</th></tr></thead>
   <tbody>${rowsHtml}</tbody>
 </table>
 </body></html>`);
@@ -2287,7 +2322,7 @@
     printWin.focus();
     printWin.print();
   });
-
+ 
   ecApplyBtn.addEventListener("click", async () => {
     // (sku, location, amount) の実行対象一覧を作る
     const targets = [];
@@ -2299,7 +2334,7 @@
     }
     if (targets.length === 0) return;
     if (!confirm(`${targets.length}件の在庫引当を反映します。よろしいですか？`)) return;
-
+ 
     ecApplyBtn.disabled = true;
     ecFileInput.disabled = true;
     let done = 0, failed = 0;
@@ -2327,7 +2362,7 @@
     ecFileInput.disabled = false;
     renderTable(currentFilteredRows());
     if (selectedSku) selectSku(selectedSku);
-
+ 
     if (failed === 0) {
       ecProgress.textContent = `完了: ${done}件を反映しました`;
       ecApplyBtn.disabled = true;
@@ -2336,7 +2371,7 @@
       ecApplyBtn.disabled = false;
     }
   });
-
+ 
   // ===== CSV一括反映 =====
   const csvBtn = document.getElementById("csvBtn");
   const csvModalOverlay = document.getElementById("csvModalOverlay");
@@ -2347,15 +2382,15 @@
   const csvPreviewBody = document.getElementById("csvPreviewBody");
   const csvApplyBtn = document.getElementById("csvApplyBtn");
   const csvProgress = document.getElementById("csvProgress");
-
+ 
   const LOCATION_HEADER_MAP = {
     "本店": "net", "ネット": "net",
     "オクテット": "octet",
     "三好": "miyoshi"
   };
-
+ 
   let csvPlan = []; // [{sku, location, amount, reason, currentStock, valid, error}]
-
+ 
   csvBtn.addEventListener("click", () => {
     csvModalOverlay.classList.remove("hidden");
     resetCsvModal();
@@ -2363,7 +2398,7 @@
   csvModalClose.addEventListener("click", () => {
     csvModalOverlay.classList.add("hidden");
   });
-
+ 
   function resetCsvModal() {
     csvFileInput.value = "";
     csvSummary.textContent = "";
@@ -2373,7 +2408,7 @@
     csvProgress.textContent = "";
     csvPlan = [];
   }
-
+ 
   function parseCsvText(text) {
     const rows = [];
     let row = [], field = "", inQuotes = false;
@@ -2395,11 +2430,11 @@
     if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
     return rows.filter(r => !(r.length === 1 && r[0].trim() === ""));
   }
-
+ 
   function cleanText(s) {
     return (s || "").replace(/[\x00-\x08\x0b\x0c\x0e-\x1f﻿]/g, "").trim();
   }
-
+ 
   csvFileInput.addEventListener("change", async () => {
     const file = csvFileInput.files[0];
     if (!file) return;
@@ -2416,12 +2451,12 @@
     header.forEach((h, i) => {
       if (LOCATION_HEADER_MAP[h]) locationIdx[LOCATION_HEADER_MAP[h]] = i;
     });
-
+ 
     if (skuIdx === -1 || Object.keys(locationIdx).length === 0) {
       csvSummary.textContent = "ヘッダー行に「SKU」や拠点名の列(本店/ネット・オクテット・三好)が見つかりません。ファイル形式を確認してください。";
       return;
     }
-
+ 
     const productMap = new Map(allProducts.map(p => [p.sku, p]));
     const plan = [];
     for (let i = 1; i < rows.length; i++) {
@@ -2446,11 +2481,11 @@
         });
       }
     }
-
+ 
     csvPlan = plan;
     renderCsvPreview();
   });
-
+ 
   function renderCsvPreview() {
     const validCount = csvPlan.filter(p => p.valid).length;
     const errorCount = csvPlan.length - validCount;
@@ -2468,7 +2503,7 @@
     `).join("");
     csvApplyBtn.disabled = validCount === 0;
   }
-
+ 
   csvApplyBtn.addEventListener("click", async () => {
     const targets = csvPlan.filter(p => p.valid);
     if (targets.length === 0) return;
@@ -2500,7 +2535,7 @@
     }
     csvFileInput.disabled = false;
     renderTable(currentFilteredRows());
-
+ 
     if (failed === 0) {
       // 全件成功したらモーダルを閉じる
       csvModalOverlay.classList.add("hidden");
@@ -2510,14 +2545,14 @@
       renderCsvPreview();
     }
   });
-
+ 
   // ===== その他メニュー =====
   const moreMenuBtn = document.getElementById("moreMenuBtn");
   const moreMenuPanel = document.getElementById("moreMenuPanel");
   const historyBtn = document.getElementById("historyBtn");
   const downloadCsvBtn = document.getElementById("downloadCsvBtn");
   const bulkDeleteBtn = document.getElementById("bulkDeleteBtn");
-
+ 
   moreMenuBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     moreMenuPanel.classList.toggle("hidden");
@@ -2527,7 +2562,7 @@
       moreMenuPanel.classList.add("hidden");
     }
   });
-
+ 
   // ===== 在庫変動履歴 =====
   const HISTORY_PAGE_SIZE = 100;
   const SOURCE_FILE_LABEL = {
@@ -2542,7 +2577,7 @@
   let historyHasMore = true;
   let historyLoading = false;
   let historyTotalCount = null;
-
+ 
   historyBtn.addEventListener("click", () => {
     moreMenuPanel.classList.add("hidden");
     historyModalOverlay.classList.remove("hidden");
@@ -2557,13 +2592,13 @@
   });
   historySearchBtn.addEventListener("click", () => loadHistoryPage(true));
   historyLoadMoreBtn.addEventListener("click", () => loadHistoryPage(false));
-
+ 
   function formatDateTime(iso) {
     const d = new Date(iso);
     const pad = (n) => String(n).padStart(2, "0");
     return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
-
+ 
   function buildHistoryQuery() {
     let q = client.from("stock_history").select("*", { count: "exact" }).order("created_at", { ascending: false });
     const sku = historySkuInput.value.trim();
@@ -2576,7 +2611,7 @@
     if (to) q = q.lte("created_at", to + "T23:59:59");
     return q;
   }
-
+ 
   async function loadHistoryPage(reset) {
     if (historyLoading) return;
     if (reset) {
@@ -2585,35 +2620,35 @@
       historyHasMore = true;
     }
     if (!historyHasMore) return;
-
+ 
     historyLoading = true;
     historySearchBtn.disabled = true;
     historyLoadMoreBtn.disabled = true;
     historyLoadMoreBtn.textContent = "読み込み中...";
     if (reset) historySummary.textContent = "読み込み中...";
-
+ 
     const { data, error, count } = await buildHistoryQuery().range(historyOffset, historyOffset + HISTORY_PAGE_SIZE - 1);
-
+ 
     historyLoading = false;
     historySearchBtn.disabled = false;
-
+ 
     if (error) {
       historySummary.textContent = "エラー: " + error.message;
       historyLoadMoreBtn.classList.add("hidden");
       return;
     }
-
+ 
     if (typeof count === "number") historyTotalCount = count;
     historyRows = historyRows.concat(data);
     historyOffset += data.length;
     historyHasMore = data.length === HISTORY_PAGE_SIZE;
-
+ 
     renderHistoryTable();
     historyLoadMoreBtn.classList.toggle("hidden", !historyHasMore);
     historyLoadMoreBtn.disabled = false;
     historyLoadMoreBtn.textContent = "もっと読み込む";
   }
-
+ 
   function renderHistoryTable() {
     const totalText = historyTotalCount !== null ? `（条件に合う全${historyTotalCount}件中）` : "";
     historySummary.textContent = `${historyRows.length}件を表示中${totalText}${historyHasMore ? " ※下の「もっと読み込む」で追加表示できます" : ""}`;
@@ -2634,7 +2669,7 @@
       `;
     }).join("");
   }
-
+ 
   // ===== 在庫CSVダウンロード =====
   function csvEscape(v) {
     const s = v === null || v === undefined ? "" : String(v);
@@ -2643,7 +2678,7 @@
     }
     return s;
   }
-
+ 
   downloadCsvBtn.addEventListener("click", () => {
     moreMenuPanel.classList.add("hidden");
     const headerRow = ["品番", "SKU", "商品名", "ブランド", "アイテム", "ネット", "オクテット", "三好"];
@@ -2674,7 +2709,7 @@
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   });
-
+ 
   // ===== 品番で在庫0のSKUを一括削除 =====
   const bulkDeleteModalOverlay = document.getElementById("bulkDeleteModalOverlay");
   const bulkDeleteModalClose = document.getElementById("bulkDeleteModalClose");
@@ -2686,11 +2721,11 @@
   const bulkDeletePreviewBody = document.getElementById("bulkDeletePreviewBody");
   const bulkDeleteApplyBtn = document.getElementById("bulkDeleteApplyBtn");
   const bulkDeleteProgress = document.getElementById("bulkDeleteProgress");
-
+ 
   // 品番ごとにグルーピングし、配下の全SKUが在庫0の品番だけを対象にする
   // （品番が空欄のSKUは他と混ざらないよう、SKU単体を1グループとして扱う）
   let bulkDeleteFullList = []; // [{key, parentCode, productName, skus: [sku,...], checked}]
-
+ 
   bulkDeleteBtn.addEventListener("click", () => {
     moreMenuPanel.classList.add("hidden");
     bulkDeleteModalOverlay.classList.remove("hidden");
@@ -2700,7 +2735,7 @@
   bulkDeleteModalClose.addEventListener("click", () => {
     bulkDeleteModalOverlay.classList.add("hidden");
   });
-
+ 
   function resetBulkDeleteModal() {
     bulkDeleteParentCodeInput.value = "";
     bulkDeleteSummary.textContent = "";
@@ -2710,7 +2745,7 @@
     bulkDeleteProgress.textContent = "";
     bulkDeleteFullList = [];
   }
-
+ 
   function loadZeroStockGroups() {
     const groups = new Map(); // key -> { parentCode, productNames: Set, skus: [] }
     for (const p of allProducts) {
@@ -2725,7 +2760,7 @@
       const zero = (p.stock_net || 0) === 0 && (p.stock_octet || 0) === 0 && (p.stock_miyoshi || 0) === 0;
       if (!zero) g.allZero = false;
     }
-
+ 
     bulkDeleteFullList = [];
     groups.forEach((g, key) => {
       if (!g.allZero) return;
@@ -2738,26 +2773,26 @@
       });
     });
     bulkDeleteFullList.sort((a, b) => (a.parentCode || a.skus[0]).localeCompare(b.parentCode || b.skus[0]));
-
+ 
     renderBulkDeletePreview();
   }
-
+ 
   function currentBulkDeleteFiltered() {
     const q = bulkDeleteParentCodeInput.value.trim().toLowerCase();
     if (!q) return bulkDeleteFullList;
     return bulkDeleteFullList.filter(r => (r.parentCode || "").toLowerCase().includes(q));
   }
-
+ 
   bulkDeleteParentCodeInput.addEventListener("input", () => {
     renderBulkDeletePreview();
   });
-
+ 
   function bulkDeleteSummaryText(rows) {
     const checkedCount = bulkDeleteFullList.filter(r => r.checked).length;
     const checkedSkuCount = bulkDeleteFullList.filter(r => r.checked).reduce((sum, r) => sum + r.skus.length, 0);
     return `在庫が一点もない品番: 全${bulkDeleteFullList.length}件中${rows.length}件を表示中（選択中: ${checkedCount}件 / 対象SKU合計${checkedSkuCount}件）`;
   }
-
+ 
   function renderBulkDeletePreview() {
     const rows = currentBulkDeleteFiltered();
     bulkDeleteSummary.textContent = bulkDeleteSummaryText(rows);
@@ -2771,7 +2806,7 @@
         <td title="${escapeHtml(r.skus.join(", "))}">${escapeHtml(r.skus.slice(0, 3).join(", "))}${r.skus.length > 3 ? ` 他${r.skus.length - 3}件` : ""}</td>
       </tr>
     `).join("");
-
+ 
     bulkDeletePreviewBody.querySelectorAll('input[type="checkbox"]').forEach(cb => {
       cb.addEventListener("change", () => {
         const row = bulkDeleteFullList.find(r => r.key === cb.dataset.key);
@@ -2782,7 +2817,7 @@
     });
     updateBulkDeleteApplyBtn();
   }
-
+ 
   bulkDeleteSelectAllBtn.addEventListener("click", () => {
     currentBulkDeleteFiltered().forEach(r => { r.checked = true; });
     renderBulkDeletePreview();
@@ -2791,18 +2826,18 @@
     currentBulkDeleteFiltered().forEach(r => { r.checked = false; });
     renderBulkDeletePreview();
   });
-
+ 
   function updateBulkDeleteApplyBtn() {
     const anyChecked = bulkDeleteFullList.some(r => r.checked);
     bulkDeleteApplyBtn.disabled = !anyChecked;
   }
-
+ 
   bulkDeleteApplyBtn.addEventListener("click", async () => {
     const targetGroups = bulkDeleteFullList.filter(r => r.checked);
     if (targetGroups.length === 0) return;
     const targets = targetGroups.flatMap(g => g.skus);
     if (!confirm(`選択した${targetGroups.length}品番（SKU合計${targets.length}件）を削除します。よろしいですか？（この操作は取り消せません）`)) return;
-
+ 
     bulkDeleteApplyBtn.disabled = true;
     let done = 0, failed = 0;
     for (const sku of targets) {
@@ -2819,7 +2854,7 @@
     if (selectedSku && !allProducts.some(p => p.sku === selectedSku)) {
       clearSelection();
     }
-
+ 
     if (failed === 0) {
       bulkDeleteModalOverlay.classList.add("hidden");
       resetBulkDeleteModal();
@@ -2828,7 +2863,7 @@
       loadZeroStockGroups();
     }
   });
-
+ 
   // ===== 在庫マスタ一括同期（仮データ→本番データの入れ替え） =====
   const masterSyncBtn = document.getElementById("masterSyncBtn");
   const masterSyncModalOverlay = document.getElementById("masterSyncModalOverlay");
@@ -2841,9 +2876,9 @@
   const masterSyncDeletePreviewBody = document.getElementById("masterSyncDeletePreviewBody");
   const masterSyncApplyBtn = document.getElementById("masterSyncApplyBtn");
   const masterSyncProgress = document.getElementById("masterSyncProgress");
-
+ 
   let masterSyncPlan = null; // { csvRows, insertCount, updateCount, unchangedCount, deleteRows }
-
+ 
   masterSyncBtn.addEventListener("click", () => {
     moreMenuPanel.classList.add("hidden");
     masterSyncModalOverlay.classList.remove("hidden");
@@ -2852,7 +2887,7 @@
   masterSyncModalClose.addEventListener("click", () => {
     masterSyncModalOverlay.classList.add("hidden");
   });
-
+ 
   function resetMasterSyncModal() {
     masterSyncFileInput.value = "";
     masterSyncFileInput.disabled = false;
@@ -2866,7 +2901,7 @@
     masterSyncProgress.textContent = "";
     masterSyncPlan = null;
   }
-
+ 
   masterSyncFileInput.addEventListener("change", async () => {
     const file = masterSyncFileInput.files[0];
     if (!file) return;
@@ -2875,14 +2910,14 @@
     masterSyncDownloadDeleteBtn.classList.add("hidden");
     masterSyncDeletePreviewTable.classList.add("hidden");
     masterSyncApplyBtn.disabled = true;
-
+ 
     const text = await file.text();
     const rows = parseCsvText(text);
     if (rows.length === 0) {
       masterSyncSummary.textContent = "データ行が見つかりませんでした。";
       return;
     }
-
+ 
     // ヘッダーなし、1行 = 「SKU,本店,オクテット,三好,津島」。津島は在庫君では管理しないため無視する。
     // 同じSKUが複数回出てくる場合は、最後に出てきた行を採用する。
     const csvMap = new Map(); // sku -> {net, octet, miyoshi}
@@ -2902,12 +2937,12 @@
         miyoshi: toNum(row[3])
       });
     }
-
+ 
     if (csvMap.size === 0) {
       masterSyncSummary.textContent = "SKUが1件も見つかりませんでした。";
       return;
     }
-
+ 
     // 現在の在庫君と比較して、新規追加・更新・変更なし・削除の件数を出す
     const existingMap = new Map(allProducts.map(p => [p.sku, p]));
     let insertCount = 0, updateCount = 0, unchangedCount = 0;
@@ -2922,21 +2957,21 @@
       }
     }
     const deleteRows = allProducts.filter(p => !csvMap.has(p.sku));
-
+ 
     masterSyncPlan = {
       csvRows: [...csvMap.entries()].map(([sku, v]) => ({ sku, net: v.net, octet: v.octet, miyoshi: v.miyoshi })),
       insertCount, updateCount, unchangedCount, deleteRows
     };
-
+ 
     renderMasterSyncPreview(blankSkuRows);
   });
-
+ 
   function renderMasterSyncPreview(blankSkuRows) {
     const p = masterSyncPlan;
     let summary = `CSV: ${p.csvRows.length}件のSKU / 新規追加予定: ${p.insertCount}件 / 更新予定: ${p.updateCount}件 / 変更なし: ${p.unchangedCount}件`;
     if (blankSkuRows > 0) summary += `\nSKUが空欄の行 ${blankSkuRows}件は無視しました。`;
     masterSyncSummary.textContent = summary;
-
+ 
     if (p.deleteRows.length > 0) {
       masterSyncDeleteWarning.classList.remove("hidden");
       masterSyncDeleteWarning.textContent = `⚠️ ${p.deleteRows.length}件のSKUが在庫君から削除されます（在庫の有無に関わらず削除されます）。実行前に必ず下の一覧・ダウンロードで内容を確認してください。`;
@@ -2957,10 +2992,10 @@
       masterSyncDownloadDeleteBtn.classList.add("hidden");
       masterSyncDeletePreviewTable.classList.add("hidden");
     }
-
+ 
     masterSyncApplyBtn.disabled = false;
   }
-
+ 
   masterSyncDownloadDeleteBtn.addEventListener("click", () => {
     if (!masterSyncPlan) return;
     const headerRow = ["SKU", "品番", "商品名", "ネット", "オクテット", "三好"];
@@ -2982,35 +3017,35 @@
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   });
-
+ 
   masterSyncApplyBtn.addEventListener("click", async () => {
     if (!masterSyncPlan) return;
     const p = masterSyncPlan;
     const msg = `以下の内容で在庫君の在庫を同期します。よろしいですか？\n\n新規追加: ${p.insertCount}件\n更新: ${p.updateCount}件\n削除: ${p.deleteRows.length}件（在庫の有無に関わらず削除されます）\n\nこの操作は元に戻せません。`;
     if (!confirm(msg)) return;
-
+ 
     masterSyncApplyBtn.disabled = true;
     masterSyncFileInput.disabled = true;
     masterSyncProgress.textContent = "同期中...(件数が多いため少し時間がかかります)";
-
+ 
     const { data, error } = await client.rpc("sync_products_from_master", { p_rows: p.csvRows });
-
+ 
     if (error) {
       masterSyncProgress.textContent = "エラー: " + error.message;
       masterSyncApplyBtn.disabled = false;
       masterSyncFileInput.disabled = false;
       return;
     }
-
+ 
     const result = Array.isArray(data) ? data[0] : data;
     masterSyncProgress.textContent = `完了: 新規追加 ${result.inserted_count}件 / 更新 ${result.updated_count}件 / 削除 ${result.deleted_count}件`;
-
+ 
     await loadProducts();
     if (selectedSku && !allProducts.some(pr => pr.sku === selectedSku)) {
       clearSelection();
     }
   });
-
+ 
   // ===== ブランド・アイテムを反映（楽天カテゴリCSVから、空欄のものだけ埋める） =====
   const brandItemBtn = document.getElementById("brandItemBtn");
   const brandItemModalOverlay = document.getElementById("brandItemModalOverlay");
@@ -3021,9 +3056,9 @@
   const brandItemPreviewBody = document.getElementById("brandItemPreviewBody");
   const brandItemApplyBtn = document.getElementById("brandItemApplyBtn");
   const brandItemProgress = document.getElementById("brandItemProgress");
-
+ 
   let brandItemPlan = []; // [{sku, parentCode, newBrand, newItem}]
-
+ 
   brandItemBtn.addEventListener("click", () => {
     moreMenuPanel.classList.add("hidden");
     brandItemModalOverlay.classList.remove("hidden");
@@ -3032,7 +3067,7 @@
   brandItemModalClose.addEventListener("click", () => {
     brandItemModalOverlay.classList.add("hidden");
   });
-
+ 
   function resetBrandItemModal() {
     brandItemFileInput.value = "";
     brandItemFileInput.disabled = false;
@@ -3043,14 +3078,14 @@
     brandItemProgress.textContent = "";
     brandItemPlan = [];
   }
-
+ 
   brandItemFileInput.addEventListener("change", async () => {
     const file = brandItemFileInput.files[0];
     if (!file) return;
     brandItemSummary.textContent = "解析中...(行数が多いため少し時間がかかります)";
     brandItemPreviewTable.classList.add("hidden");
     brandItemApplyBtn.disabled = true;
-
+ 
     let text;
     try {
       const buffer = await file.arrayBuffer();
@@ -3071,7 +3106,7 @@
       brandItemSummary.textContent = "ヘッダー行に「商品管理番号（商品URL）」または「表示先カテゴリ」の列が見つかりません。ファイル形式を確認してください。";
       return;
     }
-
+ 
     // 品番ごとに、ブランド別／アイテム別の候補を集める
     const brandCandidates = new Map(); // parent_code -> Set(brand名)
     const itemCandidates = new Map();  // parent_code -> Set(item名)
@@ -3091,7 +3126,7 @@
         itemCandidates.get(code).add(leaf);
       }
     }
-
+ 
     // 候補が1つだけに絞れた品番だけを採用する（複数あるものは判断できないため対象外）
     const categoryMap = new Map(); // parent_code -> {brand, item}
     const allCodes = new Set([...brandCandidates.keys(), ...itemCandidates.keys()]);
@@ -3103,7 +3138,7 @@
         item: iSet && iSet.size === 1 ? [...iSet][0] : null
       });
     }
-
+ 
     // 在庫君側で、品番が一致し、ブランドまたはアイテムが空欄の商品を対象にする
     const plan = [];
     for (const p of allProducts) {
@@ -3122,11 +3157,11 @@
         newItem: needItem ? c.item : (p.item_category || null)
       });
     }
-
+ 
     brandItemPlan = plan;
     renderBrandItemPreview(categoryMap.size);
   });
-
+ 
   function renderBrandItemPreview(codeCount) {
     brandItemSummary.textContent = `カテゴリCSV内の品番: ${codeCount}件 / 反映対象SKU: ${brandItemPlan.length}件（ブランド・アイテムが空欄で、かつ候補が1つに絞れたもののみ対象）`;
     brandItemPreviewTable.classList.remove("hidden");
@@ -3141,12 +3176,12 @@
     `).join("");
     brandItemApplyBtn.disabled = brandItemPlan.length === 0;
   }
-
+ 
   brandItemApplyBtn.addEventListener("click", async () => {
     const targets = brandItemPlan;
     if (targets.length === 0) return;
     if (!confirm(`${targets.length}件のSKUにブランド・アイテムを反映します。よろしいですか？`)) return;
-
+ 
     brandItemApplyBtn.disabled = true;
     brandItemFileInput.disabled = true;
     let done = 0, failed = 0;
@@ -3171,7 +3206,7 @@
     brandItemFileInput.disabled = false;
     renderTable(currentFilteredRows());
     if (selectedSku) selectSku(selectedSku);
-
+ 
     if (failed === 0) {
       brandItemModalOverlay.classList.add("hidden");
       resetBrandItemModal();
@@ -3180,7 +3215,7 @@
       renderBrandItemPreview(0);
     }
   });
-
+ 
   // ===== 原価を一括反映 =====
   const costImportBtn = document.getElementById("costImportBtn");
   const costImportModalOverlay = document.getElementById("costImportModalOverlay");
@@ -3191,10 +3226,10 @@
   const costImportPreviewBody = document.getElementById("costImportPreviewBody");
   const costImportApplyBtn = document.getElementById("costImportApplyBtn");
   const costImportProgress = document.getElementById("costImportProgress");
-
+ 
   let costImportPlan = []; // [{parentCode, cost, skuCount}]
   let costImportSkippedCount = 0;
-
+ 
   costImportBtn.addEventListener("click", () => {
     moreMenuPanel.classList.add("hidden");
     costImportModalOverlay.classList.remove("hidden");
@@ -3203,7 +3238,7 @@
   costImportModalClose.addEventListener("click", () => {
     costImportModalOverlay.classList.add("hidden");
   });
-
+ 
   function resetCostImportModal() {
     costImportFileInput.value = "";
     costImportFileInput.disabled = false;
@@ -3215,14 +3250,14 @@
     costImportPlan = [];
     costImportSkippedCount = 0;
   }
-
+ 
   costImportFileInput.addEventListener("change", async () => {
     const file = costImportFileInput.files[0];
     if (!file) return;
     costImportSummary.textContent = "解析中...";
     costImportPreviewTable.classList.add("hidden");
     costImportApplyBtn.disabled = true;
-
+ 
     let text;
     try {
       const buffer = await file.arrayBuffer();
@@ -3243,7 +3278,7 @@
       costImportSummary.textContent = "ヘッダー行に「商品コード」または「原価」の列が見つかりません。ファイル形式を確認してください。";
       return;
     }
-
+ 
     // 品番ごとの原価をCSVから読み取る（同じ品番が複数回出てきたら最後の行を採用）
     const costMap = new Map();
     for (let i = 1; i < rows.length; i++) {
@@ -3255,14 +3290,14 @@
       if (!Number.isFinite(cost)) continue;
       costMap.set(code, cost);
     }
-
+ 
     // 在庫君に実在する品番だけを対象にする
     const parentSkuCount = new Map(); // parent_code -> SKU数
     for (const p of allProducts) {
       if (!p.parent_code) continue;
       parentSkuCount.set(p.parent_code, (parentSkuCount.get(p.parent_code) || 0) + 1);
     }
-
+ 
     const plan = [];
     let skipped = 0;
     for (const [code, cost] of costMap.entries()) {
@@ -3271,12 +3306,12 @@
       plan.push({ parentCode: code, cost, skuCount });
     }
     plan.sort((a, b) => a.parentCode.localeCompare(b.parentCode));
-
+ 
     costImportPlan = plan;
     costImportSkippedCount = skipped;
     renderCostImportPreview();
   });
-
+ 
   function renderCostImportPreview() {
     costImportSummary.textContent = `CSV: ${costImportPlan.length + costImportSkippedCount}件の品番 / 反映対象: ${costImportPlan.length}件 / 在庫君に無い品番でスキップ: ${costImportSkippedCount}件`;
     costImportPreviewTable.classList.remove("hidden");
@@ -3290,12 +3325,12 @@
     `).join("");
     costImportApplyBtn.disabled = costImportPlan.length === 0;
   }
-
+ 
   costImportApplyBtn.addEventListener("click", async () => {
     const targets = costImportPlan;
     if (targets.length === 0) return;
     if (!confirm(`${targets.length}件の品番に原価を反映します。よろしいですか？`)) return;
-
+ 
     costImportApplyBtn.disabled = true;
     costImportFileInput.disabled = true;
     let done = 0, failed = 0;
@@ -3320,7 +3355,7 @@
     costImportFileInput.disabled = false;
     // 原価が変わったので、「原価未設定のみ表示」の絞り込み結果は次回チェック時に取り直す
     costMissingSkuSet = null;
-
+ 
     if (failed === 0) {
       costImportModalOverlay.classList.add("hidden");
       resetCostImportModal();
@@ -3328,8 +3363,9 @@
       costImportProgress.textContent = `完了: 成功 ${done}件 / 失敗 ${failed}件`;
     }
   });
-
+ 
   checkSession();
 </script>
 </body>
 </html>
+ 
