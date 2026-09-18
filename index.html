@@ -363,6 +363,7 @@
   #costValueTable td { text-align: right; font-variant-numeric: tabular-nums; }
   #costValueTable tr.costValueTotal th,
   #costValueTable tr.costValueTotal td { font-weight: bold; font-size: 16px; border-bottom: none; }
+  .costValueBrandNum { text-align: right; font-variant-numeric: tabular-nums; }
   .panelBox h3 {
     margin: 0 0 8px 0;
     font-size: 13px;
@@ -1107,15 +1108,16 @@
 </div>
 
 <div id="costValueModalOverlay" class="modalOverlay hidden">
-  <div class="modalBox">
+  <div class="modalBox modalBoxWide">
     <div class="modalHeader">
-      <h2>在庫評価額（全商品合計）</h2>
+      <h2>在庫評価額</h2>
       <button id="costValueModalClose" class="modalClose">✕</button>
     </div>
     <div class="modalBody">
       <div class="hint">
-        在庫君に登録されている全商品について、原価×在庫数を合計した金額です。原価が未設定の商品は0円として計算しています。
+        在庫君に登録されている全商品について、原価×在庫数を合計した金額です。原価が未設定の商品は0円として計算しています。「スプレッドシートにコピー」を押すと、下の内容がタブ区切りでコピーされ、スプレッドシートにそのまま貼り付けられます。
       </div>
+      <h3 style="font-size:13px; color:#1f2933; margin:16px 0 8px;">拠点別</h3>
       <table id="costValueTable">
         <tbody>
           <tr class="costValueTotal"><th>全体</th><td id="costValueAll">-</td></tr>
@@ -1124,6 +1126,26 @@
           <tr><th>三好</th><td id="costValueMiyoshi">-</td></tr>
         </tbody>
       </table>
+
+      <h3 style="font-size:13px; color:#1f2933; margin:20px 0 8px;">ブランド別</h3>
+      <div style="max-height: 40vh; overflow-y: auto;">
+        <table id="costValueBrandTable" class="previewTable">
+          <thead>
+            <tr>
+              <th>ブランド</th>
+              <th class="costValueBrandNum">ネット</th>
+              <th class="costValueBrandNum">オクテット</th>
+              <th class="costValueBrandNum">三好</th>
+              <th class="costValueBrandNum">合計</th>
+            </tr>
+          </thead>
+          <tbody id="costValueBrandBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modalFooter">
+      <div id="costValueCopyMsg" class="modalMsg"></div>
+      <button id="costValueCopyBtn" class="modalPrimaryBtn" style="background:#fff; color:#1f6feb; border:1px solid #1f6feb;">スプレッドシートにコピー</button>
     </div>
   </div>
 </div>
@@ -1541,37 +1563,117 @@
     return "¥" + Math.round(n).toLocaleString("ja-JP");
   }
 
+  const costValueBrandBody = document.getElementById("costValueBrandBody");
+  const costValueCopyBtn = document.getElementById("costValueCopyBtn");
+  const costValueCopyMsg = document.getElementById("costValueCopyMsg");
+
+  // モーダルを開くたびに取得した内容を保持しておき、「スプレッドシートにコピー」で使う
+  let lastCostValueSummary = null; // { total, net, octet, miyoshi }
+  let lastCostValueBrands = [];    // [{ brand, net, octet, miyoshi, total }]
+
   costValueBtn.addEventListener("click", async () => {
     moreMenuPanel.classList.add("hidden");
     costValueBtn.disabled = true;
     const originalText = costValueBtn.textContent;
     costValueBtn.textContent = "計算中...";
+    costValueCopyMsg.textContent = "";
+    costValueCopyMsg.className = "modalMsg";
 
-    const { data, error } = await client.rpc("get_inventory_value");
+    const [summaryRes, brandRes] = await Promise.all([
+      client.rpc("get_inventory_value"),
+      client.rpc("get_inventory_value_by_brand")
+    ]);
 
     costValueBtn.disabled = false;
     costValueBtn.textContent = originalText;
 
-    if (error) {
-      alert("在庫評価額の取得に失敗しました: " + error.message);
+    if (summaryRes.error) {
+      alert("在庫評価額の取得に失敗しました: " + summaryRes.error.message);
       return;
     }
-    const row = Array.isArray(data) ? data[0] : data;
+    const row = Array.isArray(summaryRes.data) ? summaryRes.data[0] : summaryRes.data;
     if (!row) {
       alert("在庫評価額の取得に失敗しました");
       return;
     }
 
+    lastCostValueSummary = {
+      total: row.total_value, net: row.net_value, octet: row.octet_value, miyoshi: row.miyoshi_value
+    };
     costValueAll.textContent = formatYen(row.total_value);
     costValueNet.textContent = formatYen(row.net_value);
     costValueOctet.textContent = formatYen(row.octet_value);
     costValueMiyoshi.textContent = formatYen(row.miyoshi_value);
+
+    if (brandRes.error) {
+      lastCostValueBrands = [];
+      costValueBrandBody.innerHTML = `<tr><td colspan="5">ブランド別の取得に失敗しました: ${escapeHtml(brandRes.error.message)}</td></tr>`;
+    } else {
+      lastCostValueBrands = (brandRes.data || []).map(r => ({
+        brand: r.brand, net: r.net_value, octet: r.octet_value, miyoshi: r.miyoshi_value, total: r.total_value
+      }));
+      costValueBrandBody.innerHTML = lastCostValueBrands.map(b => `
+        <tr>
+          <td>${escapeHtml(b.brand)}</td>
+          <td class="costValueBrandNum">${formatYen(b.net)}</td>
+          <td class="costValueBrandNum">${formatYen(b.octet)}</td>
+          <td class="costValueBrandNum">${formatYen(b.miyoshi)}</td>
+          <td class="costValueBrandNum">${formatYen(b.total)}</td>
+        </tr>
+      `).join("") || `<tr><td colspan="5">データがありません</td></tr>`;
+    }
 
     costValueModalOverlay.classList.remove("hidden");
   });
 
   costValueModalClose.addEventListener("click", () => {
     costValueModalOverlay.classList.add("hidden");
+  });
+
+  // 拠点別・ブランド別の表を、そのままスプレッドシートに貼り付けられるタブ区切りテキストに変換する
+  function buildCostValueClipboardText() {
+    const lines = [];
+    lines.push("在庫評価額（拠点別）");
+    lines.push(["拠点", "金額"].join("\t"));
+    if (lastCostValueSummary) {
+      lines.push(["全体", Math.round(lastCostValueSummary.total)].join("\t"));
+      lines.push(["ネット", Math.round(lastCostValueSummary.net)].join("\t"));
+      lines.push(["オクテット", Math.round(lastCostValueSummary.octet)].join("\t"));
+      lines.push(["三好", Math.round(lastCostValueSummary.miyoshi)].join("\t"));
+    }
+    lines.push("");
+    lines.push("在庫評価額（ブランド別）");
+    lines.push(["ブランド", "ネット", "オクテット", "三好", "合計"].join("\t"));
+    lastCostValueBrands.forEach(b => {
+      lines.push([b.brand, Math.round(b.net), Math.round(b.octet), Math.round(b.miyoshi), Math.round(b.total)].join("\t"));
+    });
+    return lines.join("\n");
+  }
+
+  costValueCopyBtn.addEventListener("click", async () => {
+    const text = buildCostValueClipboardText();
+    costValueCopyMsg.textContent = "";
+    costValueCopyMsg.className = "modalMsg";
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // Clipboard APIが使えない場合のフォールバック（古いブラウザ向け）
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      costValueCopyMsg.textContent = "コピーしました。スプレッドシートに貼り付けてください。";
+      costValueCopyMsg.className = "modalMsg ok";
+    } catch (e) {
+      costValueCopyMsg.textContent = "コピーに失敗しました: " + e.message;
+      costValueCopyMsg.className = "modalMsg err";
+    }
   });
 
   function updateLocalStock(sku, updates) {
