@@ -554,12 +554,14 @@
         <button id="moreMenuBtn" title="その他">⋯</button>
         <div id="moreMenuPanel" class="hidden">
           <button id="historyBtn">変動履歴を見る</button>
+          <button id="octetCheckBtn">オクテット在庫チェック</button>
           <button id="downloadCsvBtn">在庫CSVをダウンロード</button>
           <button id="bulkDeleteBtn">在庫が一点もない品番を削除</button>
           <button id="masterSyncBtn">在庫マスタ一括同期</button>
           <button id="brandItemBtn">ブランド・アイテムを反映</button>
           <button id="costImportBtn">原価を一括反映</button>
           <button id="costValueBtn">在庫評価額を見る</button>
+          <button id="manualBtn">マニュアルを開く</button>
         </div>
       </div>
       <button id="logoutBtn">ログアウト</button>
@@ -1150,6 +1152,46 @@
   </div>
 </div>
 
+<div id="octetCheckModalOverlay" class="modalOverlay hidden">
+  <div class="modalBox modalBoxWide">
+    <div class="modalHeader">
+      <h2>オクテット在庫チェック</h2>
+      <button id="octetCheckModalClose" class="modalClose">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="hint">
+        オクテットに在庫があり、同じ品番の別サイズ（別SKU）がネット・三好にもある商品の一覧です。在庫がある各SKUについて、どの拠点に何点あるかを表示します（オクテットで在庫がある行は黄色）。
+        <br>除外しているアイテム：<span id="octetCheckExcludeText"></span>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+        <input type="text" id="octetCheckSearch" placeholder="品番・商品名・ブランドで絞り込み" style="flex:1; padding:7px 10px; border:1px solid #cbd2d9; border-radius:6px; font-size:13px;" />
+        <div id="octetCheckSummary" style="font-size:12px; color:#616e7c; white-space:nowrap;"></div>
+      </div>
+      <div style="max-height: 55vh; overflow: auto;">
+        <table id="octetCheckTable" class="previewTable">
+          <thead>
+            <tr>
+              <th>品番</th>
+              <th>商品名</th>
+              <th>ブランド</th>
+              <th>SKU</th>
+              <th>サイズ</th>
+              <th style="text-align:right;">ネット</th>
+              <th style="text-align:right;">オクテット</th>
+              <th style="text-align:right;">三好</th>
+            </tr>
+          </thead>
+          <tbody id="octetCheckBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modalFooter">
+      <div id="octetCheckCopyMsg" class="modalMsg"></div>
+      <button id="octetCheckCopyBtn" class="modalPrimaryBtn" style="background:#fff; color:#1f6feb; border:1px solid #1f6feb;">スプレッドシートにコピー</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
   // ▼▼▼ Supabaseプロジェクトの値 ▼▼▼
@@ -1673,6 +1715,173 @@
     } catch (e) {
       costValueCopyMsg.textContent = "コピーに失敗しました: " + e.message;
       costValueCopyMsg.className = "modalMsg err";
+    }
+  });
+
+  // ===== マニュアルを開く =====
+  const MANUAL_URL = "https://docs.google.com/document/d/1cLod47p-8NeOQchDg74U34ygk2CzibH7fTPkFbUVjsk/edit?tab=t.sm5tltomvlz1";
+  document.getElementById("manualBtn").addEventListener("click", () => {
+    moreMenuPanel.classList.add("hidden");
+    window.open(MANUAL_URL, "_blank", "noopener");
+  });
+
+  // ===== オクテット在庫チェック =====
+  // 除外するアイテム（item_category にこの文字列が含まれる品番は一覧から外す）。
+  // 除外したいアイテムが増えたら、ここに追記するだけでOK。
+  const OCTET_CHECK_EXCLUDE_KEYWORDS = [
+    // シューズ類
+    "シューズ", "靴", "スニーカー", "ブーツ", "サンダル", "ローファー", "パンプス", "スリッポン", "モカシン", "ドレスシューズ",
+    // 小物類
+    "小物", "ベルト", "財布", "ウォレット", "コインケース", "カードケース", "名刺入れ", "キーケース", "キーホルダー",
+    "ネクタイ", "ボウタイ", "ポケットチーフ", "チーフ", "マフラー", "ストール", "スカーフ", "手袋", "グローブ",
+    "靴下", "ソックス", "ハンカチ", "帽子", "キャップ", "ハット", "ニット帽", "バッグ", "鞄", "カバン", "ポーチ",
+    "サングラス", "メガネ", "眼鏡", "アクセサリー", "ブレスレット", "ネックレス", "リング", "ピアス", "カフス", "時計", "傘"
+  ];
+  document.getElementById("octetCheckExcludeText").textContent = OCTET_CHECK_EXCLUDE_KEYWORDS.join("・");
+
+  const octetCheckBtn = document.getElementById("octetCheckBtn");
+  const octetCheckModalOverlay = document.getElementById("octetCheckModalOverlay");
+  const octetCheckModalClose = document.getElementById("octetCheckModalClose");
+  const octetCheckSearch = document.getElementById("octetCheckSearch");
+  const octetCheckSummary = document.getElementById("octetCheckSummary");
+  const octetCheckBody = document.getElementById("octetCheckBody");
+  const octetCheckCopyBtn = document.getElementById("octetCheckCopyBtn");
+  const octetCheckCopyMsg = document.getElementById("octetCheckCopyMsg");
+
+  let octetCheckGroups = []; // [{ parent, name, brand, item, skus: [{sku, size, net, octet, miyoshi}] }]
+
+  function isOctetCheckExcluded(itemCategory) {
+    const c = itemCategory || "";
+    if (!c) return false;
+    return OCTET_CHECK_EXCLUDE_KEYWORDS.some((kw) => c.includes(kw));
+  }
+
+  // SKUの末尾（最後の「-」より後ろ）をサイズとして表示する（推定）
+  function guessSizeFromSku(sku) {
+    const parts = String(sku || "").split("-");
+    return parts.length > 1 ? parts[parts.length - 1] : "";
+  }
+
+  function buildOctetCheckGroups() {
+    const byParent = new Map();
+    for (const p of allProducts) {
+      if (!p.parent_code) continue;
+      if (!byParent.has(p.parent_code)) byParent.set(p.parent_code, []);
+      byParent.get(p.parent_code).push(p);
+    }
+
+    const groups = [];
+    for (const [parent, items] of byParent) {
+      const item = (items.find((p) => p.item_category) || {}).item_category || "";
+      if (isOctetCheckExcluded(item)) continue;
+
+      const n = (v) => Number(v) || 0;
+      const octetSkus = items.filter((p) => n(p.stock_octet) > 0);
+      const otherSkus = items.filter((p) => n(p.stock_net) > 0 || n(p.stock_miyoshi) > 0);
+      // オクテットに在庫があるSKUとは別のSKU（別サイズ）が、ネット／三好にある場合のみ対象
+      const qualifies = octetSkus.some((s) => otherSkus.some((t) => t.sku !== s.sku));
+      if (!qualifies) continue;
+
+      const skus = items
+        .filter((p) => n(p.stock_net) + n(p.stock_octet) + n(p.stock_miyoshi) > 0)
+        .map((p) => ({
+          sku: p.sku,
+          size: guessSizeFromSku(p.sku),
+          net: n(p.stock_net),
+          octet: n(p.stock_octet),
+          miyoshi: n(p.stock_miyoshi)
+        }));
+
+      groups.push({
+        parent,
+        name: (items.find((p) => p.product_name) || {}).product_name || "",
+        brand: (items.find((p) => p.brand) || {}).brand || "",
+        item,
+        skus
+      });
+    }
+    groups.sort((a, b) => (a.brand || "").localeCompare(b.brand || "", "ja") || a.parent.localeCompare(b.parent));
+    return groups;
+  }
+
+  function filteredOctetCheckGroups() {
+    const q = octetCheckSearch.value.trim().toLowerCase();
+    if (!q) return octetCheckGroups;
+    return octetCheckGroups.filter((g) =>
+      g.parent.toLowerCase().includes(q) ||
+      g.name.toLowerCase().includes(q) ||
+      g.brand.toLowerCase().includes(q)
+    );
+  }
+
+  function renderOctetCheck() {
+    const groups = filteredOctetCheckGroups();
+    octetCheckSummary.textContent = `${groups.length}品番`;
+    if (groups.length === 0) {
+      octetCheckBody.innerHTML = `<tr><td colspan="8">該当する商品がありません</td></tr>`;
+      return;
+    }
+    octetCheckBody.innerHTML = groups.map((g) =>
+      g.skus.map((s, i) => `
+        <tr${s.octet > 0 ? ' style="background:#fffbe6;"' : ""}>
+          <td>${i === 0 ? escapeHtml(g.parent) : ""}</td>
+          <td>${i === 0 ? escapeHtml(g.name) : ""}</td>
+          <td>${i === 0 ? escapeHtml(g.brand) : ""}</td>
+          <td>${escapeHtml(s.sku)}</td>
+          <td>${escapeHtml(s.size)}</td>
+          <td style="text-align:right;">${s.net || "-"}</td>
+          <td style="text-align:right;">${s.octet || "-"}</td>
+          <td style="text-align:right;">${s.miyoshi || "-"}</td>
+        </tr>
+      `).join("")
+    ).join("");
+  }
+
+  octetCheckBtn.addEventListener("click", () => {
+    moreMenuPanel.classList.add("hidden");
+    octetCheckGroups = buildOctetCheckGroups();
+    octetCheckSearch.value = "";
+    octetCheckCopyMsg.textContent = "";
+    octetCheckCopyMsg.className = "modalMsg";
+    renderOctetCheck();
+    octetCheckModalOverlay.classList.remove("hidden");
+  });
+
+  octetCheckModalClose.addEventListener("click", () => {
+    octetCheckModalOverlay.classList.add("hidden");
+  });
+
+  octetCheckSearch.addEventListener("input", renderOctetCheck);
+
+  octetCheckCopyBtn.addEventListener("click", async () => {
+    const lines = [["品番", "商品名", "ブランド", "アイテム", "SKU", "サイズ", "ネット", "オクテット", "三好"].join("\t")];
+    filteredOctetCheckGroups().forEach((g) => {
+      g.skus.forEach((s) => {
+        lines.push([g.parent, g.name, g.brand, g.item, s.sku, s.size, s.net, s.octet, s.miyoshi]
+          .map((v) => String(v).replace(/[\t\r\n]+/g, " ")).join("\t"));
+      });
+    });
+    const text = lines.join("\n");
+    octetCheckCopyMsg.textContent = "";
+    octetCheckCopyMsg.className = "modalMsg";
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      octetCheckCopyMsg.textContent = "コピーしました。スプレッドシートに貼り付けてください。";
+      octetCheckCopyMsg.className = "modalMsg ok";
+    } catch (e) {
+      octetCheckCopyMsg.textContent = "コピーに失敗しました: " + e.message;
+      octetCheckCopyMsg.className = "modalMsg err";
     }
   });
 
